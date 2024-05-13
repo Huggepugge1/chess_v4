@@ -2,17 +2,19 @@ mod board;
 mod r#move;
 mod piece;
 
+mod king_move_generation;
+mod knight_move_generation;
+mod pawn_move_generation;
+mod sliding_pieces_move_generation;
+
 use crate::board::*;
 
 fn main() {
-    let mut board =
-        Board::from_fen("rnbqkbnr/ppppppp1/8/8/4P2p/5N2/PPPPBPPP/RNBQK2R w KQkq - 0 4".into());
+    let board =
+        Board::from_fen("rnbqkbnr/ppppp3/8/4Pppp/8/3B1N2/PPPP1PPP/RNBQK2R w KQkq - 0 6".into());
 
-    let mov1 = r#move::Move::from_string("d2d4".into(), piece::PieceType::Empty);
-    let mov2 = r#move::Move::from_string("d7d5".into(), piece::PieceType::Empty);
-
-    board.make_move(mov1);
-    board.make_move(mov2);
     board.print_board();
-    println!("{:?}", board);
+    println!("Bishop moves: {:?}", board.generate_bishop_moves());
+    println!("Rook moves: {:?}", board.generate_rook_moves());
+    println!("Queen moves: {:?}", board.generate_queen_moves());
 }

@@ -1,6 +1,6 @@
 use crate::board::Color;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum PieceType {
     Pawn,
     Knight,
@@ -11,8 +11,17 @@ pub enum PieceType {
     Empty,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Piece {
     pub typ: PieceType,
     pub color: Color,
+}
+
+impl Piece {
+    pub fn new() -> Self {
+        Piece {
+            typ: PieceType::Empty,
+            color: Color::Empty,
+        }
+    }
 }

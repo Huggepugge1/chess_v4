@@ -4,6 +4,27 @@ use crate::r#move::*;
 pub type Square = i32;
 pub type Bitmap = u64;
 
+pub trait BitOperations {
+    fn print(self);
+    fn pop_lsb(&mut self) -> Square;
+}
+
+impl BitOperations for Bitmap {
+    fn print(self) {
+        for i in (0..8).rev() {
+            let byte = ((self >> (i * 8)) as u8).reverse_bits();
+            println!("{:08b}", byte);
+        }
+        println!();
+    }
+
+    fn pop_lsb(&mut self) -> Square {
+        let lsb = self.trailing_zeros() as i32;
+        *self ^= 1 << lsb;
+        lsb
+    }
+}
+
 pub trait SquareOperations {
     fn as_string(self) -> String;
     fn get_rank(self) -> u8;
@@ -40,10 +61,10 @@ pub enum Color {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CastlingRights {
-    white_king: bool,
-    white_queen: bool,
-    black_king: bool,
-    black_queen: bool,
+    pub white_king: bool,
+    pub white_queen: bool,
+    pub black_king: bool,
+    pub black_queen: bool,
 }
 
 impl CastlingRights {
@@ -62,6 +83,7 @@ pub struct Irreversible {
     pub en_passant_target: Square,
     pub castling_rights: CastlingRights,
     pub half_move_clock: u8,
+    pub captured_piece: Piece,
 }
 
 #[derive(Debug)]
