@@ -5,7 +5,7 @@ use crate::r#move::*;
 use const_for::const_for;
 
 #[derive(Debug, Clone, Copy)]
-enum Direction {
+pub enum Direction {
     North,
     NorthEast,
     East,
@@ -117,26 +117,34 @@ const fn generate_rays() -> [[Bitmap; 64]; 8] {
 
 const RAYS: [[Bitmap; 64]; 8] = generate_rays();
 
-fn mask_positive_ray(square: Square, direction: Direction, occupied: Bitmap) -> Bitmap {
+pub fn mask_positive_ray(square: Square, direction: Direction, occupied: Bitmap) -> Bitmap {
     let ray = RAYS[direction as usize][square as usize];
     let blocked = ray & occupied;
-    ray ^ RAYS[direction as usize][(blocked | (1 << 63)).trailing_zeros() as usize]
+    ray ^ RAYS[direction as usize][(blocked | (1 << 63)).lsb() as usize]
 }
 
-fn mask_negative_ray(square: Square, direction: Direction, occupied: Bitmap) -> Bitmap {
+pub fn mask_negative_ray(square: Square, direction: Direction, occupied: Bitmap) -> Bitmap {
     let ray = RAYS[direction as usize][square as usize];
     let blocked = ray & occupied;
-    ray ^ RAYS[direction as usize][(63 - (blocked | 1).leading_zeros()) as usize]
+    ray ^ RAYS[direction as usize][((blocked | 1).msb()) as usize]
 }
 
 impl Board {
-    pub fn generate_bishop_moves(&self) -> Vec<Move> {
+    pub fn bishop_attacks(mut bishops: Bitmap, occupied: Bitmap, own_pieces: Bitmap) -> Bitmap {
+        let mut attacks = 0;
+        while bishops > 0 {
+            let start_square: Square = bishops.pop_lsb();
+            attacks |= mask_positive_ray(start_square, Direction::NorthWest, occupied)
+                | mask_positive_ray(start_square, Direction::NorthEast, occupied)
+                | mask_negative_ray(start_square, Direction::SouthEast, occupied)
+                | mask_negative_ray(start_square, Direction::SouthWest, occupied) & !own_pieces;
+        }
+        attacks
+    }
+
+    pub fn generate_bishop_moves(&self, check_evation_mask: Bitmap) -> Vec<Move> {
         let mut moves = Vec::new();
-        let own_pieces = match self.turn {
-            Color::White => self.white_pieces,
-            Color::Black => self.black_pieces,
-            Color::Empty => unreachable!(),
-        };
+        let own_pieces = self.own_pieces();
         let mut bishops = own_pieces & self.bishops;
         while bishops > 0 {
             let start_square: Square = bishops.pop_lsb();
@@ -156,7 +164,8 @@ impl Board {
                 start_square,
                 Direction::SouthWest,
                 self.white_pieces | self.black_pieces,
-            )) & !own_pieces;
+            )) & !own_pieces
+                & check_evation_mask;
             while attacks > 0 {
                 let end_square: Square = attacks.pop_lsb();
                 moves.push(Move::new(start_square, end_square, PieceType::Empty));
@@ -166,13 +175,21 @@ impl Board {
         moves
     }
 
-    pub fn generate_rook_moves(&self) -> Vec<Move> {
+    pub fn rook_attacks(mut rooks: Bitmap, occupied: Bitmap, own_pieces: Bitmap) -> Bitmap {
+        let mut attacks = 0;
+        while rooks > 0 {
+            let start_square: Square = rooks.pop_lsb();
+            attacks |= mask_positive_ray(start_square, Direction::North, occupied)
+                | mask_positive_ray(start_square, Direction::East, occupied)
+                | mask_negative_ray(start_square, Direction::South, occupied)
+                | mask_negative_ray(start_square, Direction::West, occupied) & !own_pieces;
+        }
+        attacks
+    }
+
+    pub fn generate_rook_moves(&self, check_evation_mask: Bitmap) -> Vec<Move> {
         let mut moves = Vec::new();
-        let own_pieces = match self.turn {
-            Color::White => self.white_pieces,
-            Color::Black => self.black_pieces,
-            Color::Empty => unreachable!(),
-        };
+        let own_pieces = self.own_pieces();
         let mut rooks = own_pieces & self.rooks;
         while rooks > 0 {
             let start_square: Square = rooks.pop_lsb();
@@ -192,7 +209,8 @@ impl Board {
                 start_square,
                 Direction::West,
                 self.white_pieces | self.black_pieces,
-            )) & !own_pieces;
+            )) & !own_pieces
+                & check_evation_mask;
             while attacks > 0 {
                 let end_square: Square = attacks.pop_lsb();
                 moves.push(Move::new(start_square, end_square, PieceType::Empty));
@@ -202,13 +220,25 @@ impl Board {
         moves
     }
 
-    pub fn generate_queen_moves(&self) -> Vec<Move> {
+    pub fn queen_attacks(mut queens: Bitmap, occupied: Bitmap, own_pieces: Bitmap) -> Bitmap {
+        let mut attacks = 0;
+        while queens > 0 {
+            let start_square: Square = queens.pop_lsb();
+            attacks |= mask_positive_ray(start_square, Direction::North, occupied)
+                | mask_positive_ray(start_square, Direction::East, occupied)
+                | mask_negative_ray(start_square, Direction::South, occupied)
+                | mask_negative_ray(start_square, Direction::West, occupied)
+                | mask_positive_ray(start_square, Direction::NorthWest, occupied)
+                | mask_positive_ray(start_square, Direction::NorthEast, occupied)
+                | mask_negative_ray(start_square, Direction::SouthEast, occupied)
+                | mask_negative_ray(start_square, Direction::SouthWest, occupied) & !own_pieces;
+        }
+        attacks
+    }
+
+    pub fn generate_queen_moves(&self, check_evation_mask: Bitmap) -> Vec<Move> {
         let mut moves = Vec::new();
-        let own_pieces = match self.turn {
-            Color::White => self.white_pieces,
-            Color::Black => self.black_pieces,
-            Color::Empty => unreachable!(),
-        };
+        let own_pieces = self.own_pieces();
         let mut queens = own_pieces & self.queens;
         while queens > 0 {
             let start_square: Square = queens.pop_lsb();
@@ -244,7 +274,8 @@ impl Board {
                 start_square,
                 Direction::SouthWest,
                 self.white_pieces | self.black_pieces,
-            )) & !own_pieces;
+            )) & !own_pieces
+                & check_evation_mask;
             while attacks > 0 {
                 let end_square: Square = attacks.pop_lsb();
                 moves.push(Move::new(start_square, end_square, PieceType::Empty));

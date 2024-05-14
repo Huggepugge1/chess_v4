@@ -32,40 +32,46 @@ fn south_one(bitboard: Bitmap) -> Bitmap {
     bitboard >> 8
 }
 
-fn white_pawn_single_pushes(white_pawns: Bitmap, empty: Bitmap) -> Bitmap {
-    north_one(white_pawns) & empty
-}
-
-fn white_pawn_double_pushes(white_pawns: Bitmap, empty: Bitmap) -> Bitmap {
-    north_one(white_pawn_single_pushes(white_pawns, empty)) & empty & RANK4
-}
-
-fn black_pawn_single_pushes(black_pawns: Bitmap, empty: Bitmap) -> Bitmap {
-    south_one(black_pawns) & empty
-}
-
-fn black_pawn_double_pushes(black_pawns: Bitmap, empty: Bitmap) -> Bitmap {
-    south_one(black_pawn_single_pushes(black_pawns, empty)) & empty & RANK5
-}
-
-fn white_pawn_pushes(white_pawns: Bitmap, empty: Bitmap) -> Bitmap {
-    white_pawn_single_pushes(white_pawns, empty) | white_pawn_double_pushes(white_pawns, empty)
-}
-
-fn black_pawn_pushes(black_pawns: Bitmap, empty: Bitmap) -> Bitmap {
-    black_pawn_single_pushes(black_pawns, empty) | black_pawn_double_pushes(black_pawns, empty)
-}
-
-fn white_pawn_attacks(white_pawns: Bitmap) -> Bitmap {
-    north_east_one(white_pawns) | north_west_one(white_pawns)
-}
-
-fn black_pawn_attacks(black_pawns: Bitmap) -> Bitmap {
-    south_east_one(black_pawns) | south_west_one(black_pawns)
-}
-
 impl Board {
-    pub fn generate_pawn_moves(&self) -> Vec<Move> {
+    pub fn white_pawn_single_pushes(white_pawns: Bitmap, empty: Bitmap) -> Bitmap {
+        north_one(white_pawns) & empty
+    }
+
+    pub fn white_pawn_double_pushes(white_pawns: Bitmap, empty: Bitmap) -> Bitmap {
+        north_one(Self::white_pawn_single_pushes(white_pawns, empty)) & empty & RANK4
+    }
+
+    pub fn black_pawn_single_pushes(black_pawns: Bitmap, empty: Bitmap) -> Bitmap {
+        south_one(black_pawns) & empty
+    }
+
+    pub fn black_pawn_double_pushes(black_pawns: Bitmap, empty: Bitmap) -> Bitmap {
+        south_one(Self::black_pawn_single_pushes(black_pawns, empty)) & empty & RANK5
+    }
+
+    pub fn white_pawn_pushes(white_pawns: Bitmap, empty: Bitmap) -> Bitmap {
+        Self::white_pawn_single_pushes(white_pawns, empty)
+            | Self::white_pawn_double_pushes(white_pawns, empty)
+    }
+
+    pub fn black_pawn_pushes(black_pawns: Bitmap, empty: Bitmap) -> Bitmap {
+        Self::black_pawn_single_pushes(black_pawns, empty)
+            | Self::black_pawn_double_pushes(black_pawns, empty)
+    }
+
+    pub fn white_pawn_attacks(white_pawns: Bitmap) -> Bitmap {
+        north_east_one(white_pawns) | north_west_one(white_pawns)
+    }
+
+    pub fn black_pawn_attacks(black_pawns: Bitmap) -> Bitmap {
+        south_east_one(black_pawns) | south_west_one(black_pawns)
+    }
+
+    pub fn generate_pawn_moves(
+        &self,
+        mut check_capture_mask: Bitmap,
+        check_push_mask: Bitmap,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
         let empty = !(self.white_pieces | self.black_pieces);
         let mut pawns = match self.turn {
@@ -74,39 +80,36 @@ impl Board {
             Color::Empty => unreachable!(),
         };
 
-        let enemy_bitboard = match self.turn {
-            Color::White => {
-                self.black_pieces
-                    | if self.en_passant_target != -1 {
-                        1 << self.en_passant_target
-                    } else {
-                        0
-                    }
-            }
-            Color::Black => {
-                self.white_pieces
-                    | if self.en_passant_target != -1 {
-                        1 << self.en_passant_target
-                    } else {
-                        0
-                    }
-            }
+        let mut enemy_bitboard = match self.turn {
+            Color::White => self.black_pieces,
+            Color::Black => self.white_pieces,
             Color::Empty => unreachable!(),
         };
 
+        if self.en_passant_target != -1
+            && check_capture_mask & (1 << (self.en_passant_target - self.turn as Square)) > 0
+        {
+            enemy_bitboard |= 1 << self.en_passant_target;
+            check_capture_mask |= 1 << self.en_passant_target;
+        }
         while pawns > 0 {
             let start_square: Square = pawns.pop_lsb();
             let pawn = 1 << start_square;
 
             let mut end_squares = match self.turn {
                 Color::White => {
-                    white_pawn_pushes(pawn, empty) | (white_pawn_attacks(pawn) & enemy_bitboard)
+                    Self::white_pawn_pushes(pawn, empty)
+                        | (Self::white_pawn_attacks(pawn) & enemy_bitboard)
                 }
                 Color::Black => {
-                    black_pawn_pushes(pawn, empty) | (black_pawn_attacks(pawn) & enemy_bitboard)
+                    Self::black_pawn_pushes(pawn, empty)
+                        | (Self::black_pawn_attacks(pawn) & enemy_bitboard)
                 }
                 Color::Empty => unreachable!(),
-            };
+            } & (check_capture_mask | check_push_mask);
+
+            check_capture_mask.print();
+            check_push_mask.print();
 
             while end_squares > 0 {
                 let end_square: Square = end_squares.pop_lsb();

@@ -2,6 +2,8 @@ use crate::board::*;
 use crate::piece::*;
 use crate::r#move::*;
 
+use const_for::const_for;
+
 const NOT_AFILE: Bitmap = 0xfefefefefefefefe;
 const NOT_ABFILE: Bitmap = 0xfcfcfcfcfcfcfcfc;
 const NOT_HFILE: Bitmap = 0x7f7f7f7f7f7f7f7f;
@@ -31,18 +33,15 @@ fn south_one(bitboard: Bitmap) -> Bitmap {
     bitboard >> 8
 }
 
-const fn generate_knight_attack_bitboards(
-    square: Square,
-    mut result: [Bitmap; 64],
-) -> [Bitmap; 64] {
-    if square < 64 {
-        result = generate_knight_attack_bitboards(square + 1, result);
+const fn generate_knight_attack_bitboards() -> [Bitmap; 64] {
+    let mut result = [0; 64];
+    const_for!(square in 0..64 => {
         result[square as usize] = knight_attacks(1 << square);
-    }
+    });
     result
 }
 
-const KNIGHT_ATTACK_BITBOARDS: [Bitmap; 64] = generate_knight_attack_bitboards(0, [0; 64]);
+const KNIGHT_ATTACK_BITBOARDS: [Bitmap; 64] = generate_knight_attack_bitboards();
 
 const fn knight_attacks(knights: Bitmap) -> Bitmap {
     let l1 = (knights >> 1) & NOT_HFILE;
@@ -55,21 +54,26 @@ const fn knight_attacks(knights: Bitmap) -> Bitmap {
 }
 
 impl Board {
-    pub fn generate_knight_moves(&self) -> Vec<Move> {
+    pub fn knight_attacks(knights: Bitmap) -> Bitmap {
+        let l1 = (knights >> 1) & NOT_HFILE;
+        let l2 = (knights >> 2) & NOT_GHFILE;
+        let r1 = (knights << 1) & NOT_AFILE;
+        let r2 = (knights << 2) & NOT_ABFILE;
+        let h1 = l1 | r1;
+        let h2 = l2 | r2;
+        (h1 << 16) | (h1 >> 16) | (h2 << 8) | (h2 >> 8)
+    }
+
+    pub fn generate_knight_moves(&self, check_evation_mask: Bitmap) -> Vec<Move> {
         let mut moves = Vec::new();
-        let own_pieces = match self.turn {
-            Color::White => self.white_pieces,
-            Color::Black => self.black_pieces,
-            Color::Empty => unreachable!(),
-        };
+        let own_pieces = self.own_pieces();
         let mut knights = own_pieces & self.knights;
         while knights > 0 {
-            let start_square: Square = knights.trailing_zeros() as i32;
-            knights ^= 1 << start_square;
-            let mut attacks = KNIGHT_ATTACK_BITBOARDS[start_square as usize] & !own_pieces;
+            let start_square: Square = knights.pop_lsb();
+            let mut attacks =
+                KNIGHT_ATTACK_BITBOARDS[start_square as usize] & !own_pieces & check_evation_mask;
             while attacks > 0 {
-                let end_square: Square = attacks.trailing_zeros() as i32;
-                attacks ^= 1 << end_square;
+                let end_square: Square = attacks.pop_lsb();
                 moves.push(Move {
                     start_square,
                     end_square,

@@ -161,6 +161,26 @@ impl Board {
         }
     }
 
+    pub fn restore_en_passant(&mut self, mov: &Move) {
+        let piece = self.get_piece(mov.start_square);
+        let target_square = self.en_passant_target - self.turn as Square;
+
+        if piece.typ == PieceType::Pawn && mov.end_square == self.en_passant_target {
+            let captured_piece = match self.turn {
+                Color::White => Piece {
+                    color: Color::White,
+                    typ: PieceType::Pawn,
+                },
+                Color::Black => Piece {
+                    color: Color::Black,
+                    typ: PieceType::Pawn,
+                },
+                Color::Empty => unreachable!(),
+            };
+            self.toggle_piece(target_square, captured_piece);
+        }
+    }
+
     pub fn castle(&mut self, mov: &Move) {
         let piece = self.get_piece(mov.start_square);
 
@@ -249,7 +269,7 @@ impl Board {
         } = self.irreversible.pop().unwrap();
 
         self.un_castle(mov);
-        self.capture_en_passant(mov);
+        self.restore_en_passant(mov);
 
         if captured_piece.color != Color::Empty {
             self.toggle_piece(mov.end_square, captured_piece);

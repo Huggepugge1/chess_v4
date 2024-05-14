@@ -6,9 +6,9 @@ pub type Bitmap = u64;
 
 pub trait BitOperations {
     fn print(self);
-    fn lsb(&self) -> Square;
+    fn lsb(&mut self) -> Square;
     fn pop_lsb(&mut self) -> Square;
-    fn msb(&self) -> Square;
+    fn msb(&mut self) -> Square;
 }
 
 impl BitOperations for Bitmap {
@@ -20,7 +20,7 @@ impl BitOperations for Bitmap {
         println!();
     }
 
-    fn lsb(&self) -> Square {
+    fn lsb(&mut self) -> Square {
         self.trailing_zeros() as Square
     }
 
@@ -30,7 +30,7 @@ impl BitOperations for Bitmap {
         lsb
     }
 
-    fn msb(&self) -> Square {
+    fn msb(&mut self) -> Square {
         63 - self.leading_zeros() as Square
     }
 }
@@ -167,22 +167,6 @@ impl Board {
         };
 
         Piece { typ, color }
-    }
-
-    pub fn own_pieces(&self) -> Bitmap {
-        match self.turn {
-            Color::White => self.white_pieces,
-            Color::Black => self.black_pieces,
-            Color::Empty => unreachable!(),
-        }
-    }
-
-    pub fn enemy_pieces(&self) -> Bitmap {
-        match self.turn {
-            Color::White => self.black_pieces,
-            Color::Black => self.white_pieces,
-            Color::Empty => unreachable!(),
-        }
     }
 
     pub fn print_board(&self) {

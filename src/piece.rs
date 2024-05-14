@@ -24,4 +24,16 @@ impl Piece {
             color: Color::Empty,
         }
     }
+
+    pub fn is_slider(&self) -> bool {
+        match self.typ {
+            PieceType::Pawn => false,
+            PieceType::Knight => false,
+            PieceType::Bishop => true,
+            PieceType::Rook => true,
+            PieceType::Queen => true,
+            PieceType::King => false,
+            PieceType::Empty => false,
+        }
+    }
 }
