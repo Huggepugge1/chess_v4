@@ -1,3 +1,5 @@
+use const_for::const_for;
+
 use crate::board::*;
 use crate::piece::*;
 use crate::r#move::*;
@@ -21,15 +23,15 @@ const fn west_one(bitboard: Bitmap) -> Bitmap {
     (bitboard << 1) & NOT_HFILE
 }
 
-const fn generate_king_attack_bitboards(square: Square, mut result: [Bitmap; 64]) -> [Bitmap; 64] {
-    if square < 64 {
-        result = generate_king_attack_bitboards(square + 1, result);
+const fn generate_king_attack_bitboards() -> [Bitmap; 64] {
+    let mut result = [0; 64];
+    const_for!(square in 0..64 => {
         result[square as usize] = king_attacks(1 << square);
-    }
+    });
     result
 }
 
-const KING_ATTACK_BITBOARDS: [Bitmap; 64] = generate_king_attack_bitboards(0, [0; 64]);
+const KING_ATTACK_BITBOARDS: [Bitmap; 64] = generate_king_attack_bitboards();
 
 const fn king_attacks(kings: Bitmap) -> Bitmap {
     let attacks = east_one(kings) | west_one(kings);
@@ -72,14 +74,14 @@ impl Board {
             }
             Color::Black => {
                 if self.castling_rights.black_queen
-                    && (self.white_pieces | self.black_pieces) & 0x0E000000000000 == 0
+                    && (self.white_pieces | self.black_pieces) & 0x0E00000000000000 == 0
                 {
-                    moves.push(Move::new(4, 2, PieceType::Empty))
+                    moves.push(Move::new(60, 58, PieceType::Empty))
                 }
                 if self.castling_rights.black_king
-                    && (self.white_pieces | self.black_pieces) & 0x60000000000000 == 0
+                    && (self.white_pieces | self.black_pieces) & 0x6000000000000000 == 0
                 {
-                    moves.push(Move::new(4, 6, PieceType::Empty))
+                    moves.push(Move::new(60, 62, PieceType::Empty))
                 }
             }
             Color::Empty => unreachable!(),

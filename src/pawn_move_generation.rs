@@ -67,36 +67,49 @@ fn black_pawn_attacks(black_pawns: Bitmap) -> Bitmap {
 impl Board {
     pub fn generate_pawn_moves(&self) -> Vec<Move> {
         let mut moves = Vec::new();
-        let empty = !(self.white_pieces & self.black_pieces);
+        let empty = !(self.white_pieces | self.black_pieces);
         let mut pawns = match self.turn {
             Color::White => self.white_pieces & self.pawns,
             Color::Black => self.black_pieces & self.pawns,
             Color::Empty => unreachable!(),
         };
 
-        while pawns > 0 {
-            let start_square: Square = pawns.trailing_zeros() as i32;
-            let pawn = 1 << start_square;
+        let enemy_bitboard = match self.turn {
+            Color::White => {
+                self.black_pieces
+                    | if self.en_passant_target != -1 {
+                        1 << self.en_passant_target
+                    } else {
+                        0
+                    }
+            }
+            Color::Black => {
+                self.white_pieces
+                    | if self.en_passant_target != -1 {
+                        1 << self.en_passant_target
+                    } else {
+                        0
+                    }
+            }
+            Color::Empty => unreachable!(),
+        };
 
-            pawns ^= pawn;
+        while pawns > 0 {
+            let start_square: Square = pawns.pop_lsb();
+            let pawn = 1 << start_square;
 
             let mut end_squares = match self.turn {
                 Color::White => {
-                    white_pawn_pushes(pawn, empty)
-                        | (white_pawn_attacks(pawn)
-                            & (self.black_pieces | (1 << self.en_passant_target)))
+                    white_pawn_pushes(pawn, empty) | (white_pawn_attacks(pawn) & enemy_bitboard)
                 }
                 Color::Black => {
-                    black_pawn_pushes(pawn, empty)
-                        | (black_pawn_attacks(pawn)
-                            & (self.white_pieces | (1 << self.en_passant_target)))
+                    black_pawn_pushes(pawn, empty) | (black_pawn_attacks(pawn) & enemy_bitboard)
                 }
                 Color::Empty => unreachable!(),
             };
 
             while end_squares > 0 {
-                let end_square: Square = end_squares.trailing_zeros() as i32;
-                end_squares ^= 1 << end_square;
+                let end_square: Square = end_squares.pop_lsb();
 
                 if end_square >= 56 {
                     for promotion in [

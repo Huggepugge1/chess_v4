@@ -1,7 +1,7 @@
 use crate::board::*;
 use crate::piece::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Move {
     pub start_square: Square,
     pub end_square: Square,
@@ -17,10 +17,28 @@ impl Move {
         }
     }
 
-    pub fn reverse(&mut self) {
-        let mut temp = self.start_square;
-        self.start_square = self.end_square;
-        self.end_square = temp;
+    pub fn print(&self) {
+        println!("{}", self.as_string());
+    }
+
+    pub fn as_string(&self) -> String {
+        let promotion: char = match self.promotion {
+            PieceType::Rook => 'r',
+            PieceType::Knight => 'n',
+            PieceType::Bishop => 'b',
+            PieceType::Queen => 'q',
+            _ => ' ',
+        };
+        format!(
+            "{}{}{}",
+            self.start_square.as_string(),
+            self.end_square.as_string(),
+            promotion
+        )
+    }
+
+    pub fn reverse(&self) -> Self {
+        Self::new(self.end_square, self.start_square, self.promotion)
     }
 
     pub fn from_string(mov: String, promotion: PieceType) -> Self {
@@ -136,9 +154,10 @@ impl Board {
 
     pub fn capture_en_passant(&mut self, mov: &Move) {
         let piece = self.get_piece(mov.start_square);
+        let target_square = self.en_passant_target - self.turn as Square;
 
         if piece.typ == PieceType::Pawn && mov.end_square == self.en_passant_target {
-            self.toggle_piece(self.en_passant_target - self.turn as Square, piece);
+            self.toggle_piece(target_square, self.get_piece(target_square));
         }
     }
 
@@ -151,6 +170,20 @@ impl Board {
                 6 => self.move_piece(&Move::new(7, 5, PieceType::Empty)),
                 62 => self.move_piece(&Move::new(63, 61, PieceType::Empty)),
                 58 => self.move_piece(&Move::new(56, 58, PieceType::Empty)),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    pub fn un_castle(&mut self, mov: &Move) {
+        let piece = self.get_piece(mov.start_square);
+
+        if piece.typ == PieceType::King && i32::abs(mov.start_square - mov.end_square) == 2 {
+            match mov.end_square {
+                2 => self.move_piece(&Move::new(3, 0, PieceType::Empty)),
+                6 => self.move_piece(&Move::new(5, 7, PieceType::Empty)),
+                62 => self.move_piece(&Move::new(61, 63, PieceType::Empty)),
+                58 => self.move_piece(&Move::new(58, 56, PieceType::Empty)),
                 _ => unreachable!(),
             }
         }
@@ -201,11 +234,11 @@ impl Board {
         self.change_turn();
     }
 
-    pub fn unmake_move(&mut self, mov: &mut Move) {
+    pub fn unmake_move(&mut self, mov: &Move) {
         self.change_turn();
-        mov.reverse();
 
-        self.move_piece(mov);
+        let reverse_mov = mov.reverse();
+        self.move_piece(&reverse_mov);
 
         let captured_piece;
         Irreversible {
@@ -215,9 +248,7 @@ impl Board {
             captured_piece,
         } = self.irreversible.pop().unwrap();
 
-        self.castle(mov);
-
-        mov.reverse();
+        self.un_castle(mov);
         self.capture_en_passant(mov);
 
         if captured_piece.color != Color::Empty {
