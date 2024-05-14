@@ -88,6 +88,7 @@ impl Board {
 
         if self.en_passant_target != -1
             && check_capture_mask & (1 << (self.en_passant_target - self.turn as Square)) > 0
+            || check_push_mask & (1 << (self.en_passant_target)) > 0
         {
             enemy_bitboard |= 1 << self.en_passant_target;
             check_capture_mask |= 1 << self.en_passant_target;
