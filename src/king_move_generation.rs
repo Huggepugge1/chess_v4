@@ -5,8 +5,8 @@ use crate::piece::*;
 use crate::r#move::*;
 use crate::sliding_pieces_move_generation::{mask_negative_ray, mask_positive_ray, Direction};
 
-const NOT_AFILE: Bitmap = 0xfefefefefefefefe;
-const NOT_HFILE: Bitmap = 0x7f7f7f7f7f7f7f7f;
+const NOT_AFILE: Bitmap = 0x7f7f7f7f7f7f7f7f;
+const NOT_HFILE: Bitmap = 0xfefefefefefefefe;
 
 const fn north_one(bitboard: Bitmap) -> Bitmap {
     bitboard << 8
@@ -88,8 +88,10 @@ impl Board {
         let king = own_pieces & self.kings;
         let start_square: Square = king.lsb();
         let enemy_attacks = self.generate_attack_bitboard();
+        KING_ATTACK_BITBOARDS[start_square as usize].print();
         let mut attacks =
             KING_ATTACK_BITBOARDS[start_square as usize] & !(own_pieces | enemy_attacks);
+        attacks.print();
         while attacks > 0 {
             let end_square: Square = attacks.pop_lsb();
             moves.push(Move::new(start_square, end_square, PieceType::Empty));

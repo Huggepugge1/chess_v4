@@ -109,9 +109,6 @@ impl Board {
                 Color::Empty => unreachable!(),
             } & (check_capture_mask | check_push_mask);
 
-            check_capture_mask.print();
-            check_push_mask.print();
-
             while end_squares > 0 {
                 let end_square: Square = end_squares.pop_lsb();
 
