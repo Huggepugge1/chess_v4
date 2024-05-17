@@ -38,12 +38,17 @@ impl Board {
         let king_square = king.lsb();
         let pinned = self.get_pinned(own_pieces);
 
-        let mut pinned_ray = 0;
-        if pinned > 0 {
-            pinned_ray = Self::xray_rook_attacks(occupied, own_pieces, king_square)
+        let pinned_ray = if pinned > 0 {
+            Self::xray_rook_attacks(occupied, own_pieces, king_square)
+                & enemy_pieces
+                & (self.rooks | self.queens)
                 | Self::xray_bishop_attacks(occupied, own_pieces, king_square)
-                | Self::from_to_square(king_square, pinned.lsb());
-        }
+                    & enemy_pieces
+                    & (self.bishops | self.queens)
+                | Self::from_to_square(king_square, pinned.lsb())
+        } else {
+            0
+        };
 
         moves.append(&mut self.generate_pawn_moves(capture_mask, push_mask, pinned, pinned_ray));
         moves.append(&mut self.generate_knight_moves(capture_mask | push_mask, pinned));

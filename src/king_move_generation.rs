@@ -3,7 +3,6 @@ use const_for::const_for;
 use crate::board::*;
 use crate::piece::*;
 use crate::r#move::*;
-use crate::sliding_pieces_move_generation::{mask_negative_ray, mask_positive_ray, Direction};
 
 const NOT_AFILE: Bitmap = 0x7f7f7f7f7f7f7f7f;
 const NOT_HFILE: Bitmap = 0xfefefefefefefefe;
@@ -55,6 +54,7 @@ impl Board {
         let enemy_attacks = self.generate_attack_bitboard();
         let mut attacks =
             KING_ATTACK_BITBOARDS[start_square as usize] & !(own_pieces | enemy_attacks);
+
         while attacks > 0 {
             let end_square: Square = attacks.pop_lsb();
             moves.push(Move::new(start_square, end_square, PieceType::Empty));

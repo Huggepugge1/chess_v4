@@ -85,7 +85,7 @@ const fn generate_rays() -> [[Bitmap; 64]; 8] {
         result[Direction::NorthEast as usize][square as usize] = ray;
 
         let mut ray = 0;
-        if square > 8 && square % 8 > 0 {
+        if square > 7 && square % 8 > 0 {
             const_for!(offset in 1..(square % 8 + 1) => {
                 let bitmap: Bitmap = 1 << (square - (offset * 9));
                 ray ^= bitmap;
@@ -99,7 +99,7 @@ const fn generate_rays() -> [[Bitmap; 64]; 8] {
         result[Direction::SouthWest as usize][square as usize] = ray;
 
         let mut ray = 0;
-        if square > 8 && square % 8 != 7 {
+        if square > 7 && square % 8 != 7 {
             const_for!(offset in 1..(8 - square % 8) => {
                 let bitmap: Bitmap = 1 << (square - (offset * 7));
                 ray ^= bitmap;

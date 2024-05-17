@@ -15,10 +15,9 @@ mod perft;
 use crate::board::*;
 
 fn main() {
-    board::Board::from_fen("8/6b1/8/8/R1pPb1k1/4P3/P7/K7 w - - 1 2".to_string()).print_board();
     board::Board::from_fen("8/6b1/8/8/R1pPb1k1/4P3/P7/K7 w - - 1 2".to_string()).perft_test(
         1,
-        4,
+        5,
         &mut Vec::new(),
     );
 }

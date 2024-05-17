@@ -24,9 +24,17 @@ impl Board {
     }
 
     pub fn perft_test(&mut self, min_depth: i32, max_depth: i32, moves: &mut Vec<String>) {
-        if min_depth == 0 {
+        if max_depth == 0 {
+            self.print_board();
             return;
         }
+
+        if min_depth != max_depth {
+            println!("Running perft_test on");
+            self.print_board();
+            println!("Depth: {max_depth}");
+        }
+
         for depth in min_depth..=max_depth {
             let mut stockfish_result: HashMap<String, i32> = HashMap::new();
             let mut fails: Vec<(String, i32, i32)> = Vec::new();
