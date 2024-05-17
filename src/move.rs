@@ -35,15 +35,29 @@ impl Move {
             self.end_square.as_string(),
             promotion
         )
+        .strip_suffix(' ')
+        .unwrap()
+        .into()
     }
 
     pub fn reverse(&self) -> Self {
         Self::new(self.end_square, self.start_square, self.promotion)
     }
 
-    pub fn from_string(mov: String, promotion: PieceType) -> Self {
+    pub fn from_string(mov: String) -> Self {
         let start_square = mov[0..2].to_string().to_square();
         let end_square = mov[2..4].to_string().to_square();
+
+        let promotion: PieceType = match mov.len() {
+            5 => match mov.chars().nth(4).unwrap() {
+                'r' => PieceType::Rook,
+                'n' => PieceType::Knight,
+                'b' => PieceType::Bishop,
+                'q' => PieceType::Queen,
+                _ => PieceType::Empty,
+            },
+            _ => PieceType::Empty,
+        };
         Move {
             start_square,
             end_square,

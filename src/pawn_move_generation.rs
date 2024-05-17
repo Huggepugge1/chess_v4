@@ -67,18 +67,57 @@ impl Board {
         south_east_one(black_pawns) | south_west_one(black_pawns)
     }
 
-    pub fn generate_pawn_moves(
-        &self,
+    pub fn generate_pinned_pawn_moves(&self, pawn: Bitmap, pinned_ray: Bitmap) -> Vec<Move> {
+        let mut moves = Vec::new();
+        let empty = !(self.white_pieces | self.black_pieces);
+        let enemy_bitboard = match self.turn {
+            Color::White => self.black_pieces,
+            Color::Black => self.white_pieces,
+            Color::Empty => unreachable!(),
+        };
+
+        let start_square = pawn.lsb();
+
+        let mut end_squares = match self.turn {
+            Color::White => {
+                Self::white_pawn_pushes(pawn, empty)
+                    | (Self::white_pawn_attacks(pawn) & enemy_bitboard)
+            }
+            Color::Black => {
+                Self::black_pawn_pushes(pawn, empty)
+                    | (Self::black_pawn_attacks(pawn) & enemy_bitboard)
+            }
+            Color::Empty => unreachable!(),
+        } & pinned_ray;
+
+        while end_squares > 0 {
+            let end_square: Square = end_squares.pop_lsb();
+
+            if end_square >= 56 {
+                for promotion in [
+                    PieceType::Knight,
+                    PieceType::Bishop,
+                    PieceType::Rook,
+                    PieceType::Queen,
+                ] {
+                    moves.push(Move::new(start_square, end_square, promotion));
+                }
+            } else {
+                moves.push(Move::new(start_square, end_square, PieceType::Empty));
+            }
+        }
+
+        moves
+    }
+
+    pub fn generate_non_pinned_pawn_moves(
+        &mut self,
+        mut pawns: Bitmap,
         mut check_capture_mask: Bitmap,
         check_push_mask: Bitmap,
     ) -> Vec<Move> {
         let mut moves = Vec::new();
         let empty = !(self.white_pieces | self.black_pieces);
-        let mut pawns = match self.turn {
-            Color::White => self.white_pieces & self.pawns,
-            Color::Black => self.black_pieces & self.pawns,
-            Color::Empty => unreachable!(),
-        };
 
         let mut enemy_bitboard = match self.turn {
             Color::White => self.black_pieces,
@@ -87,8 +126,8 @@ impl Board {
         };
 
         if self.en_passant_target != -1
-            && check_capture_mask & (1 << (self.en_passant_target - self.turn as Square)) > 0
-            || check_push_mask & (1 << (self.en_passant_target)) > 0
+            && (check_capture_mask & (1 << (self.en_passant_target - self.turn as Square)) > 0
+                || check_push_mask & (1 << (self.en_passant_target)) > 0)
         {
             enemy_bitboard |= 1 << self.en_passant_target;
             check_capture_mask |= 1 << self.en_passant_target;
@@ -112,6 +151,27 @@ impl Board {
             while end_squares > 0 {
                 let end_square: Square = end_squares.pop_lsb();
 
+                if end_square == self.en_passant_target {
+                    let piece = self.get_piece(start_square);
+
+                    let enemy = 1 << end_square - self.turn as i32;
+                    let enemy_piece = self.get_piece(end_square - self.turn as i32);
+
+                    self.toggle_piece(end_square - self.turn as i32, enemy_piece);
+                    if self.get_pinned(pawn) > 0 {
+                        self.toggle_piece(end_square - self.turn as i32, enemy_piece);
+                        break;
+                    }
+
+                    self.toggle_piece(end_square - self.turn as i32, enemy_piece);
+                    self.toggle_piece(start_square, piece);
+                    if self.get_pinned(enemy) > 0 {
+                        self.toggle_piece(start_square, piece);
+                        break;
+                    }
+                    self.toggle_piece(start_square, piece);
+                }
+
                 if end_square >= 56 {
                     for promotion in [
                         PieceType::Knight,
@@ -126,6 +186,31 @@ impl Board {
                 }
             }
         }
+
+        moves
+    }
+
+    pub fn generate_pawn_moves(
+        &mut self,
+        check_capture_mask: Bitmap,
+        check_push_mask: Bitmap,
+        pinned: Bitmap,
+        pinned_ray: Bitmap,
+    ) -> Vec<Move> {
+        let mut moves = Vec::new();
+        let pawns = match self.turn {
+            Color::White => self.white_pieces & self.pawns,
+            Color::Black => self.black_pieces & self.pawns,
+            Color::Empty => unreachable!(),
+        };
+
+        moves.append(&mut self.generate_non_pinned_pawn_moves(
+            pawns & !pinned,
+            check_capture_mask,
+            check_push_mask,
+        ));
+
+        moves.append(&mut self.generate_pinned_pawn_moves(pawns & pinned, pinned_ray));
 
         moves
     }

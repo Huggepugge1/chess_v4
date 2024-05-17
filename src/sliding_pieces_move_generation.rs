@@ -134,15 +134,27 @@ impl Board {
         let mut attacks = 0;
         while bishops > 0 {
             let start_square: Square = bishops.pop_lsb();
-            attacks |= mask_positive_ray(start_square, Direction::NorthWest, occupied)
+            attacks |= (mask_positive_ray(start_square, Direction::NorthWest, occupied)
                 | mask_positive_ray(start_square, Direction::NorthEast, occupied)
                 | mask_negative_ray(start_square, Direction::SouthEast, occupied)
-                | mask_negative_ray(start_square, Direction::SouthWest, occupied) & !own_pieces;
+                | mask_negative_ray(start_square, Direction::SouthWest, occupied))
+                & !own_pieces;
         }
         attacks
     }
 
-    pub fn generate_bishop_moves(&self, check_evation_mask: Bitmap) -> Vec<Move> {
+    pub fn xray_bishop_attacks(occupied: Bitmap, mut blockers: Bitmap, square: Square) -> Bitmap {
+        let attacks = Self::bishop_attacks(1 << square, occupied, 0);
+        blockers &= attacks;
+        attacks ^ Self::bishop_attacks(1 << square, occupied ^ blockers, 0)
+    }
+
+    pub fn generate_bishop_moves(
+        &self,
+        check_evation_mask: Bitmap,
+        pinned: Bitmap,
+        pinned_ray: Bitmap,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
         let own_pieces = self.own_pieces();
         let mut bishops = own_pieces & self.bishops;
@@ -166,6 +178,11 @@ impl Board {
                 self.white_pieces | self.black_pieces,
             )) & !own_pieces
                 & check_evation_mask;
+
+            if (1 << start_square) & pinned > 0 {
+                attacks &= pinned_ray;
+            }
+
             while attacks > 0 {
                 let end_square: Square = attacks.pop_lsb();
                 moves.push(Move::new(start_square, end_square, PieceType::Empty));
@@ -179,15 +196,27 @@ impl Board {
         let mut attacks = 0;
         while rooks > 0 {
             let start_square: Square = rooks.pop_lsb();
-            attacks |= mask_positive_ray(start_square, Direction::North, occupied)
+            attacks |= (mask_positive_ray(start_square, Direction::North, occupied)
                 | mask_positive_ray(start_square, Direction::East, occupied)
                 | mask_negative_ray(start_square, Direction::South, occupied)
-                | mask_negative_ray(start_square, Direction::West, occupied) & !own_pieces;
+                | mask_negative_ray(start_square, Direction::West, occupied))
+                & !own_pieces;
         }
         attacks
     }
 
-    pub fn generate_rook_moves(&self, check_evation_mask: Bitmap) -> Vec<Move> {
+    pub fn xray_rook_attacks(occupied: Bitmap, mut blockers: Bitmap, square: Square) -> Bitmap {
+        let attacks = Self::rook_attacks(1 << square, occupied, 0);
+        blockers &= attacks;
+        attacks ^ Self::rook_attacks(1 << square, occupied ^ blockers, 0)
+    }
+
+    pub fn generate_rook_moves(
+        &self,
+        check_evation_mask: Bitmap,
+        pinned: Bitmap,
+        pinned_ray: Bitmap,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
         let own_pieces = self.own_pieces();
         let mut rooks = own_pieces & self.rooks;
@@ -211,6 +240,11 @@ impl Board {
                 self.white_pieces | self.black_pieces,
             )) & !own_pieces
                 & check_evation_mask;
+
+            if (1 << start_square) & pinned > 0 {
+                attacks &= pinned_ray;
+            }
+
             while attacks > 0 {
                 let end_square: Square = attacks.pop_lsb();
                 moves.push(Move::new(start_square, end_square, PieceType::Empty));
@@ -224,19 +258,25 @@ impl Board {
         let mut attacks = 0;
         while queens > 0 {
             let start_square: Square = queens.pop_lsb();
-            attacks |= mask_positive_ray(start_square, Direction::North, occupied)
+            attacks |= (mask_positive_ray(start_square, Direction::North, occupied)
                 | mask_positive_ray(start_square, Direction::East, occupied)
                 | mask_negative_ray(start_square, Direction::South, occupied)
                 | mask_negative_ray(start_square, Direction::West, occupied)
                 | mask_positive_ray(start_square, Direction::NorthWest, occupied)
                 | mask_positive_ray(start_square, Direction::NorthEast, occupied)
                 | mask_negative_ray(start_square, Direction::SouthEast, occupied)
-                | mask_negative_ray(start_square, Direction::SouthWest, occupied) & !own_pieces;
+                | mask_negative_ray(start_square, Direction::SouthWest, occupied))
+                & !own_pieces;
         }
         attacks
     }
 
-    pub fn generate_queen_moves(&self, check_evation_mask: Bitmap) -> Vec<Move> {
+    pub fn generate_queen_moves(
+        &self,
+        check_evation_mask: Bitmap,
+        pinned: Bitmap,
+        pinned_ray: Bitmap,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
         let own_pieces = self.own_pieces();
         let mut queens = own_pieces & self.queens;
@@ -276,6 +316,11 @@ impl Board {
                 self.white_pieces | self.black_pieces,
             )) & !own_pieces
                 & check_evation_mask;
+
+            if (1 << start_square) & pinned > 0 {
+                attacks &= pinned_ray;
+            }
+
             while attacks > 0 {
                 let end_square: Square = attacks.pop_lsb();
                 moves.push(Move::new(start_square, end_square, PieceType::Empty));

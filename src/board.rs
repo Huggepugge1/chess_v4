@@ -1,6 +1,8 @@
 use crate::piece::*;
 use crate::r#move::*;
 
+use const_for::const_for;
+
 pub type Square = i32;
 pub type Bitmap = u64;
 
@@ -80,10 +82,10 @@ pub struct CastlingRights {
 impl CastlingRights {
     pub fn new() -> Self {
         CastlingRights {
-            white_king: true,
-            white_queen: true,
-            black_king: true,
-            black_queen: true,
+            white_king: false,
+            white_queen: false,
+            black_king: false,
+            black_queen: false,
         }
     }
 }
@@ -95,6 +97,33 @@ pub struct Irreversible {
     pub half_move_clock: u8,
     pub captured_piece: Piece,
 }
+
+const fn generate_rectangular() -> [[Bitmap; 64]; 64] {
+    let mut result = [[0; 64]; 64];
+
+    const_for!(from in 0..64u64 => {
+        const_for!(to in 0..64u64 => {
+            let m1   = u64::MAX;
+            let a2a7 = 0x0001010101010100;
+            let b2g7 = 0x0040201008040200;
+            let h1b7 = 0x0002040810204080;
+
+            let btwn: u64  = (m1 << from) ^ (m1 << to);
+            let file: u64  =   (to & 7).wrapping_sub(from   & 7);
+            let rank: u64  =  ((to | 7).wrapping_sub(from)) >> 3 ;
+            let mut line  =      (   (file  &  7).wrapping_sub(1)) & a2a7; /* a2a7 if same file */
+            line += 2 * ((   (rank  &  7).wrapping_sub(1)) >> 58); /* b1g1 if same rank */
+            line += (((rank.wrapping_sub(file)) & 15).wrapping_sub(1)) & b2g7; /* b2g7 if same diagonal */
+            line += (((rank.wrapping_add(file)) & 15).wrapping_sub(1)) & h1b7; /* h1b7 if same antidiag */
+            line = line.wrapping_mul(btwn & btwn.wrapping_neg()); /* mul acts like shift by smaller square */
+            result[from as usize][to as usize] = line & btwn;   /* return the bits on that line in-between */
+        });
+    });
+
+    result
+}
+
+const RECTANGULAR: [[Bitmap; 64]; 64] = generate_rectangular();
 
 #[derive(Debug)]
 pub struct Board {
@@ -116,6 +145,8 @@ pub struct Board {
     pub full_move_clock: u8,
 
     pub irreversible: Vec<Irreversible>,
+
+    pub fen: String,
 }
 
 impl Board {
@@ -138,6 +169,7 @@ impl Board {
             full_move_clock: 0,
 
             irreversible: Vec::new(),
+            fen: String::new(),
         }
     }
 
@@ -183,6 +215,43 @@ impl Board {
             Color::Black => self.white_pieces,
             Color::Empty => unreachable!(),
         }
+    }
+
+    pub fn from_to_square(from: Square, to: Square) -> Bitmap {
+        RECTANGULAR[from as usize][to as usize]
+    }
+
+    pub fn obstructed(from: Square, to: Square, occupied: Bitmap) -> Bitmap {
+        Self::from_to_square(from, to) & occupied
+    }
+
+    pub fn get_pinned(&self, blockers: Bitmap) -> Bitmap {
+        let enemy_pieces = self.enemy_pieces();
+        let occupied = self.white_pieces | self.black_pieces;
+        let king = self.own_pieces() & self.kings;
+        let king_square = king.lsb();
+
+        let mut pinned = 0;
+        let mut pinner = Self::xray_rook_attacks(occupied, blockers, king_square)
+            & enemy_pieces
+            & (self.rooks | self.queens);
+
+        while pinner > 0 {
+            let square = pinner.lsb();
+            pinned |= Self::obstructed(square, king_square, blockers);
+            pinner &= pinner.wrapping_sub(1);
+        }
+
+        let mut pinner = Self::xray_bishop_attacks(occupied, blockers, king_square)
+            & enemy_pieces
+            & (self.bishops | self.queens);
+
+        while pinner > 0 {
+            let square = pinner.lsb();
+            pinned |= Self::obstructed(square, king_square, blockers);
+            pinner &= pinner.wrapping_sub(1);
+        }
+        pinned
     }
 
     pub fn print_board(&self) {
@@ -237,6 +306,8 @@ impl Board {
 
     pub fn from_fen(fen: String) -> Self {
         let mut board = Board::new();
+        board.fen = fen.clone();
+
         let mut parts = fen.split(" ");
         let pieces = parts.next().unwrap();
         let turn = parts.next().unwrap();

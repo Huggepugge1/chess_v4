@@ -2,7 +2,7 @@ use crate::board::*;
 use crate::r#move::*;
 
 impl Board {
-    pub fn generate_moves(&self) -> Vec<Move> {
+    pub fn generate_moves(&mut self) -> Vec<Move> {
         let mut moves = Vec::new();
 
         let enemy_pieces = self.enemy_pieces();
@@ -27,18 +27,29 @@ impl Board {
 
             let checker_square = checkers.lsb();
             push_mask = if self.get_piece(checker_square).is_slider() {
-                self.ray_to_king(king.lsb(), checker_square)
+                Self::from_to_square(king.lsb(), checker_square)
             } else {
                 0
             }
         } else if checkers.count_ones() > 1 {
+            return self.generate_king_moves();
         }
 
-        moves.append(&mut self.generate_pawn_moves(capture_mask, push_mask));
-        moves.append(&mut self.generate_knight_moves(capture_mask | push_mask));
-        moves.append(&mut self.generate_bishop_moves(capture_mask | push_mask));
-        moves.append(&mut self.generate_rook_moves(capture_mask | push_mask));
-        moves.append(&mut self.generate_queen_moves(capture_mask | push_mask));
+        let king_square = king.lsb();
+        let pinned = self.get_pinned(own_pieces);
+
+        let mut pinned_ray = 0;
+        if pinned > 0 {
+            pinned_ray = Self::xray_rook_attacks(occupied, own_pieces, king_square)
+                | Self::xray_bishop_attacks(occupied, own_pieces, king_square)
+                | Self::from_to_square(king_square, pinned.lsb());
+        }
+
+        moves.append(&mut self.generate_pawn_moves(capture_mask, push_mask, pinned, pinned_ray));
+        moves.append(&mut self.generate_knight_moves(capture_mask | push_mask, pinned));
+        moves.append(&mut self.generate_bishop_moves(capture_mask | push_mask, pinned, pinned_ray));
+        moves.append(&mut self.generate_rook_moves(capture_mask | push_mask, pinned, pinned_ray));
+        moves.append(&mut self.generate_queen_moves(capture_mask | push_mask, pinned, pinned_ray));
         moves.append(&mut self.generate_king_moves());
         moves
     }

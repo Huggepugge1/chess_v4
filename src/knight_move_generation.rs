@@ -64,10 +64,10 @@ impl Board {
         (h1 << 16) | (h1 >> 16) | (h2 << 8) | (h2 >> 8)
     }
 
-    pub fn generate_knight_moves(&self, check_evation_mask: Bitmap) -> Vec<Move> {
+    pub fn generate_knight_moves(&self, check_evation_mask: Bitmap, pinned: Bitmap) -> Vec<Move> {
         let mut moves = Vec::new();
         let own_pieces = self.own_pieces();
-        let mut knights = own_pieces & self.knights;
+        let mut knights = own_pieces & self.knights & !pinned;
         while knights > 0 {
             let start_square: Square = knights.pop_lsb();
             let mut attacks =

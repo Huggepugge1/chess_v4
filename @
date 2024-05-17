@@ -23,7 +23,7 @@ impl Board {
         result
     }
 
-    pub fn perft_test(&mut self, min_depth: i32, max_depth: i32, moves: &mut Vec<String>) {
+    pub fn perft_test(&mut self, min_depth: i32, max_depth: i32, mut moves: Vec<String>) {
         if min_depth == 0 {
             return;
         }
@@ -99,18 +99,13 @@ impl Board {
             if fails.len() == 0 && moves.len() == 0 && min_depth != max_depth {
                 println!("Performance test OK at depth {depth}");
             } else {
-                if min_depth != max_depth {
-                    println!("Performance test FAILED at depth {depth}");
-                    println!("Fen: {}", self.fen);
-                }
-                fails.sort();
                 moves.push(fails[0].0.clone());
                 self.make_move(&Move::from_string(moves[moves.len() - 1].clone()));
                 self.perft_test(depth - 1, depth - 1, moves);
                 if min_depth != max_depth {
-                    println!("moves: {}", moves.join(" "));
+                    println!("Performance test FAILED at depth {depth}");
+                    println!("moves: {}", moves.join());
                 }
-                println!("{:?}", fails[0]);
                 break;
             }
         }

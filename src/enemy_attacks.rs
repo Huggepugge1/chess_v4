@@ -10,9 +10,9 @@ impl Board {
         } else {
             Self::white_pawn_attacks(enemy_pieces & self.pawns)
         } | Self::knight_attacks(enemy_pieces & self.knights)
-            | Self::bishop_attacks(enemy_pieces & self.bishops, occupied, enemy_pieces)
-            | Self::rook_attacks(enemy_pieces & self.rooks, occupied, enemy_pieces)
-            | Self::queen_attacks(enemy_pieces & self.queens, occupied, enemy_pieces)
+            | Self::bishop_attacks(enemy_pieces & self.bishops, occupied, 0)
+            | Self::rook_attacks(enemy_pieces & self.rooks, occupied, 0)
+            | Self::queen_attacks(enemy_pieces & self.queens, occupied, 0)
             | Self::king_attacks(enemy_pieces & self.kings);
     }
 }
