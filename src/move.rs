@@ -279,7 +279,6 @@ impl Board {
         let reverse_mov = mov.reverse();
         self.move_piece(&reverse_mov);
         self.un_castle(mov);
-        self.restore_en_passant(mov);
 
         let captured_piece;
         Irreversible {
@@ -290,6 +289,7 @@ impl Board {
             mov: _,
         } = self.irreversible.pop().unwrap();
 
+        self.restore_en_passant(mov);
         if captured_piece.color != Color::Empty {
             self.toggle_piece(mov.end_square, captured_piece);
         }
