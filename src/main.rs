@@ -14,10 +14,16 @@ mod perft;
 
 use crate::board::*;
 
+use std::fs::File;
+use std::io::prelude::*;
+
 fn main() {
-    board::Board::from_fen("8/6b1/8/8/R1pPb1k1/4P3/P7/K7 w - - 1 2".to_string()).perft_test(
-        1,
-        5,
-        &mut Vec::new(),
-    );
+    let mut file = File::open("fens.txt").unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+
+    let fens = contents.trim();
+    for fen in fens.split("\n") {
+        board::Board::from_fen(fen.to_string() + " 0 0").perft_test(1, 3, &mut Vec::new());
+    }
 }

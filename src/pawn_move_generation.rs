@@ -67,7 +67,12 @@ impl Board {
         south_east_one(black_pawns) | south_west_one(black_pawns)
     }
 
-    pub fn generate_pinned_pawn_moves(&self, pawn: Bitmap, pinned_ray: Bitmap) -> Vec<Move> {
+    pub fn generate_pinned_pawn_moves(
+        &mut self,
+        mut pawns: Bitmap,
+        check_capture_mask: Bitmap,
+        check_push_mask: Bitmap,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
         let empty = !(self.white_pieces | self.black_pieces);
         let enemy_bitboard = match self.turn {
@@ -76,34 +81,39 @@ impl Board {
             Color::Empty => unreachable!(),
         };
 
-        let start_square = pawn.lsb();
+        while pawns > 0 {
+            let start_square = pawns.pop_lsb();
+            let pawn = 1 << start_square;
 
-        let mut end_squares = match self.turn {
-            Color::White => {
-                Self::white_pawn_pushes(pawn, empty)
-                    | (Self::white_pawn_attacks(pawn) & enemy_bitboard)
-            }
-            Color::Black => {
-                Self::black_pawn_pushes(pawn, empty)
-                    | (Self::black_pawn_attacks(pawn) & enemy_bitboard)
-            }
-            Color::Empty => unreachable!(),
-        } & pinned_ray;
-
-        while end_squares > 0 {
-            let end_square: Square = end_squares.pop_lsb();
-
-            if end_square >= 56 {
-                for promotion in [
-                    PieceType::Knight,
-                    PieceType::Bishop,
-                    PieceType::Rook,
-                    PieceType::Queen,
-                ] {
-                    moves.push(Move::new(start_square, end_square, promotion));
+            let mut end_squares = match self.turn {
+                Color::White => {
+                    Self::white_pawn_pushes(pawn, empty)
+                        | (Self::white_pawn_attacks(pawn) & enemy_bitboard)
                 }
-            } else {
-                moves.push(Move::new(start_square, end_square, PieceType::Empty));
+                Color::Black => {
+                    Self::black_pawn_pushes(pawn, empty)
+                        | (Self::black_pawn_attacks(pawn) & enemy_bitboard)
+                }
+
+                Color::Empty => unreachable!(),
+            } & self.get_full_pinned_ray(pawn)
+                & (check_capture_mask | check_push_mask);
+
+            while end_squares > 0 {
+                let end_square: Square = end_squares.pop_lsb();
+
+                if end_square >= 56 || end_square < 8 {
+                    for promotion in [
+                        PieceType::Knight,
+                        PieceType::Bishop,
+                        PieceType::Rook,
+                        PieceType::Queen,
+                    ] {
+                        moves.push(Move::new(start_square, end_square, promotion));
+                    }
+                } else {
+                    moves.push(Move::new(start_square, end_square, PieceType::Empty));
+                }
             }
         }
 
@@ -154,25 +164,26 @@ impl Board {
                 if end_square == self.en_passant_target {
                     let piece = self.get_piece(start_square);
 
-                    let enemy = 1 << end_square - self.turn as i32;
-                    let enemy_piece = self.get_piece(end_square - self.turn as i32);
+                    let enemy_square = end_square - self.turn as i32;
+                    let enemy = 1 << (enemy_square);
+                    let enemy_piece = self.get_piece(enemy_square);
 
-                    self.toggle_piece(end_square - self.turn as i32, enemy_piece);
+                    self.toggle_piece(enemy_square, enemy_piece);
                     if self.get_pinned(pawn) > 0 {
-                        self.toggle_piece(end_square - self.turn as i32, enemy_piece);
-                        break;
+                        self.toggle_piece(enemy_square, enemy_piece);
+                        continue;
                     }
 
-                    self.toggle_piece(end_square - self.turn as i32, enemy_piece);
+                    self.toggle_piece(enemy_square, enemy_piece);
                     self.toggle_piece(start_square, piece);
                     if self.get_pinned(enemy) > 0 {
                         self.toggle_piece(start_square, piece);
-                        break;
+                        continue;
                     }
                     self.toggle_piece(start_square, piece);
                 }
 
-                if end_square >= 56 {
+                if end_square >= 56 || end_square < 8 {
                     for promotion in [
                         PieceType::Knight,
                         PieceType::Bishop,
@@ -195,7 +206,6 @@ impl Board {
         check_capture_mask: Bitmap,
         check_push_mask: Bitmap,
         pinned: Bitmap,
-        pinned_ray: Bitmap,
     ) -> Vec<Move> {
         let mut moves = Vec::new();
         let pawns = match self.turn {
@@ -210,7 +220,11 @@ impl Board {
             check_push_mask,
         ));
 
-        moves.append(&mut self.generate_pinned_pawn_moves(pawns & pinned, pinned_ray));
+        moves.append(&mut self.generate_pinned_pawn_moves(
+            pawns & pinned,
+            check_capture_mask,
+            check_push_mask,
+        ));
 
         moves
     }

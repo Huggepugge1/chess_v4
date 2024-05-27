@@ -29,14 +29,14 @@ impl Move {
             PieceType::Queen => 'q',
             _ => ' ',
         };
+
         format!(
             "{}{}{}",
             self.start_square.as_string(),
             self.end_square.as_string(),
             promotion
         )
-        .strip_suffix(' ')
-        .unwrap()
+        .trim()
         .into()
     }
 
@@ -88,7 +88,11 @@ impl Board {
         match piece.color {
             Color::White => self.white_pieces ^= bitmap,
             Color::Black => self.black_pieces ^= bitmap,
-            Color::Empty => panic!("Tried to move an empty piece!"),
+            Color::Empty => {
+                self.print_board();
+                println!("{:?}", self.irreversible);
+                panic!("Tried to move an empty piece!: {piece:?} -> {mov:?}")
+            }
         }
 
         match piece.typ {
@@ -123,8 +127,8 @@ impl Board {
                         self.castling_rights.white_queen = false;
                     }
                     Color::Black => {
-                        self.castling_rights.white_king = false;
-                        self.castling_rights.white_queen = false;
+                        self.castling_rights.black_king = false;
+                        self.castling_rights.black_queen = false;
                     }
                     Color::Empty => unreachable!(),
                 }
@@ -147,7 +151,7 @@ impl Board {
         match piece.color {
             Color::White => self.white_pieces ^= bitmap,
             Color::Black => self.black_pieces ^= bitmap,
-            Color::Empty => panic!("Tried to remove an empty piece!"),
+            Color::Empty => panic!("Tried to toggle an empty piece!"),
         }
 
         match piece.typ {
@@ -157,7 +161,7 @@ impl Board {
             PieceType::Rook => self.rooks ^= bitmap,
             PieceType::Queen => self.queens ^= bitmap,
             PieceType::King => self.kings ^= bitmap,
-            PieceType::Empty => panic!("Tried to remove an empty piece!"),
+            PieceType::Empty => panic!("Tried to toggle an empty piece!"),
         }
     }
 
@@ -182,11 +186,11 @@ impl Board {
         if piece.typ == PieceType::Pawn && mov.end_square == self.en_passant_target {
             let captured_piece = match self.turn {
                 Color::White => Piece {
-                    color: Color::White,
+                    color: Color::Black,
                     typ: PieceType::Pawn,
                 },
                 Color::Black => Piece {
-                    color: Color::Black,
+                    color: Color::White,
                     typ: PieceType::Pawn,
                 },
                 Color::Empty => unreachable!(),
@@ -203,7 +207,7 @@ impl Board {
                 2 => self.move_piece(&Move::new(0, 3, PieceType::Empty)),
                 6 => self.move_piece(&Move::new(7, 5, PieceType::Empty)),
                 62 => self.move_piece(&Move::new(63, 61, PieceType::Empty)),
-                58 => self.move_piece(&Move::new(56, 58, PieceType::Empty)),
+                58 => self.move_piece(&Move::new(56, 59, PieceType::Empty)),
                 _ => unreachable!(),
             }
         }
@@ -217,7 +221,7 @@ impl Board {
                 2 => self.move_piece(&Move::new(3, 0, PieceType::Empty)),
                 6 => self.move_piece(&Move::new(5, 7, PieceType::Empty)),
                 62 => self.move_piece(&Move::new(61, 63, PieceType::Empty)),
-                58 => self.move_piece(&Move::new(58, 56, PieceType::Empty)),
+                58 => self.move_piece(&Move::new(59, 56, PieceType::Empty)),
                 _ => unreachable!(),
             }
         }
@@ -253,6 +257,7 @@ impl Board {
             castling_rights: self.castling_rights,
             half_move_clock: self.half_move_clock,
             captured_piece,
+            mov: mov.clone(),
         });
 
         if captured_piece.color != Color::Empty {
@@ -273,6 +278,8 @@ impl Board {
 
         let reverse_mov = mov.reverse();
         self.move_piece(&reverse_mov);
+        self.un_castle(mov);
+        self.restore_en_passant(mov);
 
         let captured_piece;
         Irreversible {
@@ -280,10 +287,8 @@ impl Board {
             castling_rights: self.castling_rights,
             half_move_clock: self.half_move_clock,
             captured_piece,
+            mov: _,
         } = self.irreversible.pop().unwrap();
-
-        self.un_castle(mov);
-        self.restore_en_passant(mov);
 
         if captured_piece.color != Color::Empty {
             self.toggle_piece(mov.end_square, captured_piece);

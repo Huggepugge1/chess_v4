@@ -96,6 +96,7 @@ pub struct Irreversible {
     pub castling_rights: CastlingRights,
     pub half_move_clock: u8,
     pub captured_piece: Piece,
+    pub mov: Move,
 }
 
 const fn generate_rectangular() -> [[Bitmap; 64]; 64] {
@@ -184,12 +185,12 @@ impl Board {
 
         let typ = if self.pawns & (1 << square) > 0 {
             PieceType::Pawn
-        } else if self.rooks & (1 << square) > 0 {
-            PieceType::Rook
         } else if self.knights & (1 << square) > 0 {
             PieceType::Knight
         } else if self.bishops & (1 << square) > 0 {
             PieceType::Bishop
+        } else if self.rooks & (1 << square) > 0 {
+            PieceType::Rook
         } else if self.queens & (1 << square) > 0 {
             PieceType::Queen
         } else if self.kings & (1 << square) > 0 {
@@ -232,26 +233,42 @@ impl Board {
         let king_square = king.lsb();
 
         let mut pinned = 0;
-        let mut pinner = Self::xray_rook_attacks(occupied, blockers, king_square)
+        let mut pinner = (Self::xray_rook_attacks(occupied, blockers, king_square)
             & enemy_pieces
-            & (self.rooks | self.queens);
+            & (self.rooks | self.queens))
+            | (Self::xray_bishop_attacks(occupied, blockers, king_square)
+                & enemy_pieces
+                & (self.bishops | self.queens));
 
         while pinner > 0 {
-            let square = pinner.lsb();
+            let square = pinner.pop_lsb();
             pinned |= Self::obstructed(square, king_square, blockers);
-            pinner &= pinner.wrapping_sub(1);
-        }
-
-        let mut pinner = Self::xray_bishop_attacks(occupied, blockers, king_square)
-            & enemy_pieces
-            & (self.bishops | self.queens);
-
-        while pinner > 0 {
-            let square = pinner.lsb();
-            pinned |= Self::obstructed(square, king_square, blockers);
-            pinner &= pinner.wrapping_sub(1);
         }
         pinned
+    }
+
+    pub fn get_full_pinned_ray(&self, pinned: Bitmap) -> Bitmap {
+        let enemy_pieces = self.enemy_pieces();
+        let occupied = self.white_pieces | self.black_pieces;
+        let king = self.own_pieces() & self.kings;
+        let king_square = king.lsb();
+        let blockers = self.own_pieces();
+
+        let mut pinner = (Self::xray_rook_attacks(occupied, blockers, king_square)
+            & enemy_pieces
+            & (self.rooks | self.queens))
+            | (Self::xray_bishop_attacks(occupied, blockers, king_square)
+                & enemy_pieces
+                & (self.bishops | self.queens));
+
+        while pinner > 0 {
+            let square = pinner.pop_lsb();
+            if pinned & Self::obstructed(square, king_square, blockers) > 0 {
+                return Self::from_to_square(square, king_square) | (1 << square);
+            }
+        }
+
+        0
     }
 
     pub fn print_board(&self) {

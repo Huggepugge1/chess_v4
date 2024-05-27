@@ -14,7 +14,7 @@ impl Board {
             Self::white_pawn_attacks(king) & enemy_pieces & self.pawns
         } else {
             Self::black_pawn_attacks(king) & enemy_pieces & self.pawns
-        } | (Self::knight_attacks(king) & own_pieces & self.knights)
+        } | (Self::knight_attacks(king) & enemy_pieces & self.knights)
             | (Self::bishop_attacks(king, occupied, own_pieces) & enemy_pieces & self.bishops)
             | (Self::rook_attacks(king, occupied, own_pieces) & enemy_pieces & self.rooks)
             | (Self::queen_attacks(king, occupied, own_pieces) & enemy_pieces & self.queens);
@@ -38,23 +38,11 @@ impl Board {
         let king_square = king.lsb();
         let pinned = self.get_pinned(own_pieces);
 
-        let pinned_ray = if pinned > 0 {
-            Self::xray_rook_attacks(occupied, own_pieces, king_square)
-                & enemy_pieces
-                & (self.rooks | self.queens)
-                | Self::xray_bishop_attacks(occupied, own_pieces, king_square)
-                    & enemy_pieces
-                    & (self.bishops | self.queens)
-                | Self::from_to_square(king_square, pinned.lsb())
-        } else {
-            0
-        };
-
-        moves.append(&mut self.generate_pawn_moves(capture_mask, push_mask, pinned, pinned_ray));
+        moves.append(&mut self.generate_pawn_moves(capture_mask, push_mask, pinned));
         moves.append(&mut self.generate_knight_moves(capture_mask | push_mask, pinned));
-        moves.append(&mut self.generate_bishop_moves(capture_mask | push_mask, pinned, pinned_ray));
-        moves.append(&mut self.generate_rook_moves(capture_mask | push_mask, pinned, pinned_ray));
-        moves.append(&mut self.generate_queen_moves(capture_mask | push_mask, pinned, pinned_ray));
+        moves.append(&mut self.generate_bishop_moves(capture_mask | push_mask, pinned));
+        moves.append(&mut self.generate_rook_moves(capture_mask | push_mask, pinned));
+        moves.append(&mut self.generate_queen_moves(capture_mask | push_mask, pinned));
         moves.append(&mut self.generate_king_moves());
         moves
     }

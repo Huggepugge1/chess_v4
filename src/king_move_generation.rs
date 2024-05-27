@@ -67,7 +67,8 @@ impl Board {
         match self.turn {
             Color::White => {
                 if self.castling_rights.white_queen
-                    && (self.white_pieces | self.black_pieces | enemy_attacks) & !king & 0x1E == 0
+                    && (self.white_pieces | self.black_pieces) & 0x0E == 0
+                    && enemy_attacks & 0x1C == 0
                 {
                     moves.push(Move::new(4, 2, PieceType::Empty))
                 }
@@ -79,10 +80,8 @@ impl Board {
             }
             Color::Black => {
                 if self.castling_rights.black_queen
-                    && (self.white_pieces | self.black_pieces | enemy_attacks)
-                        & !king
-                        & 0x1E00000000000000
-                        == 0
+                    && (self.white_pieces | self.black_pieces) & 0x0E00000000000000 == 0
+                    && enemy_attacks & 0x1C00000000000000 == 0
                 {
                     moves.push(Move::new(60, 58, PieceType::Empty))
                 }

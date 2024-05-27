@@ -16,21 +16,6 @@ pub enum Direction {
     NorthWest,
 }
 
-impl Direction {
-    pub fn into_array() -> [Direction; 8] {
-        [
-            Direction::North,
-            Direction::NorthEast,
-            Direction::East,
-            Direction::SouthEast,
-            Direction::South,
-            Direction::SouthWest,
-            Direction::West,
-            Direction::NorthWest,
-        ]
-    }
-}
-
 const AFILE: Bitmap = 0x0101010101010101;
 
 const fn generate_rays() -> [[Bitmap; 64]; 8] {
@@ -149,12 +134,7 @@ impl Board {
         attacks ^ Self::bishop_attacks(1 << square, occupied ^ blockers, 0)
     }
 
-    pub fn generate_bishop_moves(
-        &self,
-        check_evation_mask: Bitmap,
-        pinned: Bitmap,
-        pinned_ray: Bitmap,
-    ) -> Vec<Move> {
+    pub fn generate_bishop_moves(&self, check_evation_mask: Bitmap, pinned: Bitmap) -> Vec<Move> {
         let mut moves = Vec::new();
         let own_pieces = self.own_pieces();
         let mut bishops = own_pieces & self.bishops;
@@ -179,8 +159,9 @@ impl Board {
             )) & !own_pieces
                 & check_evation_mask;
 
-            if (1 << start_square) & pinned > 0 {
-                attacks &= pinned_ray;
+            let current_pin = (1 << start_square) & pinned;
+            if current_pin > 0 {
+                attacks &= self.get_full_pinned_ray(current_pin);
             }
 
             while attacks > 0 {
@@ -211,12 +192,7 @@ impl Board {
         attacks ^ Self::rook_attacks(1 << square, occupied ^ blockers, 0)
     }
 
-    pub fn generate_rook_moves(
-        &self,
-        check_evation_mask: Bitmap,
-        pinned: Bitmap,
-        pinned_ray: Bitmap,
-    ) -> Vec<Move> {
+    pub fn generate_rook_moves(&self, check_evation_mask: Bitmap, pinned: Bitmap) -> Vec<Move> {
         let mut moves = Vec::new();
         let own_pieces = self.own_pieces();
         let mut rooks = own_pieces & self.rooks;
@@ -241,8 +217,9 @@ impl Board {
             )) & !own_pieces
                 & check_evation_mask;
 
-            if (1 << start_square) & pinned > 0 {
-                attacks &= pinned_ray;
+            let current_pin = (1 << start_square) & pinned;
+            if current_pin > 0 {
+                attacks &= self.get_full_pinned_ray(current_pin);
             }
 
             while attacks > 0 {
@@ -271,12 +248,7 @@ impl Board {
         attacks
     }
 
-    pub fn generate_queen_moves(
-        &self,
-        check_evation_mask: Bitmap,
-        pinned: Bitmap,
-        pinned_ray: Bitmap,
-    ) -> Vec<Move> {
+    pub fn generate_queen_moves(&self, check_evation_mask: Bitmap, pinned: Bitmap) -> Vec<Move> {
         let mut moves = Vec::new();
         let own_pieces = self.own_pieces();
         let mut queens = own_pieces & self.queens;
@@ -317,8 +289,9 @@ impl Board {
             )) & !own_pieces
                 & check_evation_mask;
 
-            if (1 << start_square) & pinned > 0 {
-                attacks &= pinned_ray;
+            let current_pin = (1 << start_square) & pinned;
+            if current_pin > 0 {
+                attacks &= self.get_full_pinned_ray(current_pin);
             }
 
             while attacks > 0 {

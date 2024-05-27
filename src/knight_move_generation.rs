@@ -9,28 +9,14 @@ const NOT_ABFILE: Bitmap = 0xfcfcfcfcfcfcfcfc;
 const NOT_HFILE: Bitmap = 0x7f7f7f7f7f7f7f7f;
 const NOT_GHFILE: Bitmap = 0x3f3f3f3f3f3f3f3f;
 
-fn north_east_one(bitboard: Bitmap) -> Bitmap {
-    (bitboard << 9) & NOT_AFILE
-}
-
-fn south_east_one(bitboard: Bitmap) -> Bitmap {
-    (bitboard >> 7) & NOT_AFILE
-}
-
-fn south_west_one(bitboard: Bitmap) -> Bitmap {
-    (bitboard >> 9) & NOT_HFILE
-}
-
-fn north_west_one(bitboard: Bitmap) -> Bitmap {
-    (bitboard << 7) & NOT_HFILE
-}
-
-fn north_one(bitboard: Bitmap) -> Bitmap {
-    bitboard << 8
-}
-
-fn south_one(bitboard: Bitmap) -> Bitmap {
-    bitboard >> 8
+const fn knight_attacks(knights: Bitmap) -> Bitmap {
+    let l1 = (knights >> 1) & NOT_HFILE;
+    let l2 = (knights >> 2) & NOT_GHFILE;
+    let r1 = (knights << 1) & NOT_AFILE;
+    let r2 = (knights << 2) & NOT_ABFILE;
+    let h1 = l1 | r1;
+    let h2 = l2 | r2;
+    (h1 << 16) | (h1 >> 16) | (h2 << 8) | (h2 >> 8)
 }
 
 const fn generate_knight_attack_bitboards() -> [Bitmap; 64] {
@@ -42,16 +28,6 @@ const fn generate_knight_attack_bitboards() -> [Bitmap; 64] {
 }
 
 const KNIGHT_ATTACK_BITBOARDS: [Bitmap; 64] = generate_knight_attack_bitboards();
-
-const fn knight_attacks(knights: Bitmap) -> Bitmap {
-    let l1 = (knights >> 1) & NOT_HFILE;
-    let l2 = (knights >> 2) & NOT_GHFILE;
-    let r1 = (knights << 1) & NOT_AFILE;
-    let r2 = (knights << 2) & NOT_ABFILE;
-    let h1 = l1 | r1;
-    let h2 = l2 | r2;
-    (h1 << 16) | (h1 >> 16) | (h2 << 8) | (h2 >> 8)
-}
 
 impl Board {
     pub fn knight_attacks(knights: Bitmap) -> Bitmap {
