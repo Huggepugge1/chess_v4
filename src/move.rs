@@ -1,6 +1,8 @@
 use crate::board::*;
 use crate::piece::*;
 
+use std::process::exit;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Move {
     pub start_square: Square,
@@ -90,12 +92,12 @@ impl Board {
     }
 
     pub fn move_piece(&mut self, mov: &Move) {
-        let piece = self.get_piece(mov.start_square);
+        let mut piece = self.get_piece(mov.start_square);
         let bitmap = (1 << mov.start_square) | (1 << mov.end_square);
 
-        match mov.promotion {
-            PieceType::Empty => (),
-            _ => self.promote_pawn(mov),
+        if mov.promotion != PieceType::Empty {
+            piece.typ = PieceType::Pawn;
+            self.promote_pawn(mov);
         }
 
         match piece.color {
@@ -188,7 +190,10 @@ impl Board {
                 for irr in &self.irreversible {
                     print!("{} ", irr.mov.as_string());
                 }
-                panic!("Tried to toggle an empty piece!: {square:?} -> {piece:?}")
+                panic!(
+                    "Tried to toggle an empty piece!: {} -> {piece:?}",
+                    square.as_string()
+                )
             }
         }
     }
