@@ -2,8 +2,13 @@ use crate::r#move::Move;
 use crate::Board;
 
 use std::collections::HashMap;
-use std::io::Write;
-use std::process::{exit, Command, Stdio};
+use std::fs::{File, OpenOptions};
+use std::io::prelude::*;
+use std::io::{BufReader, Write};
+use std::process::{Command, Stdio};
+
+use rand::prelude::*;
+use rand::rngs::StdRng;
 
 impl Board {
     pub fn perft(&mut self, depth: i32) -> HashMap<String, i32> {
@@ -94,10 +99,15 @@ impl Board {
         fails
     }
 
-    pub fn perft_test(&mut self, min_depth: i32, max_depth: i32, moves: &mut Vec<String>) {
+    pub fn perft_test(
+        &mut self,
+        min_depth: i32,
+        max_depth: i32,
+        moves: &mut Vec<String>,
+    ) -> Result<(), ()> {
         if max_depth == 0 {
             self.print_board();
-            return;
+            return Ok(());
         }
 
         for depth in min_depth..=max_depth {
@@ -113,15 +123,120 @@ impl Board {
                 moves.push(fails[0].0.clone());
                 let current_move = moves[moves.len() - 1].clone();
                 self.make_move(&Move::from_string(current_move.clone()));
-                self.perft_test(depth - 1, depth - 1, moves);
+                let _ = self.perft_test(depth - 1, depth - 1, moves);
                 self.unmake_move(&Move::from_string(current_move));
                 if min_depth != max_depth {
                     println!("moves: {}", moves.join(" "));
                     println!("chess_v4:  {}", fails[0].1);
                     println!("stockfish: {}", fails[0].2);
-                    exit(1);
+                    return Err(());
                 }
             }
         }
+        return Ok(());
+    }
+
+    pub fn perft_multi_test(file: &str, depth: i32, seed: Option<u64>, index: Option<usize>) {
+        let mut file = File::open(file).unwrap();
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+
+        let fens = contents.trim();
+
+        let seed = match seed {
+            Some(seed) => seed,
+            None => random(),
+        };
+
+        let mut rng = StdRng::seed_from_u64(seed);
+        let mut fens = fens.split("\n").collect::<Vec<_>>();
+
+        fens.shuffle(&mut rng);
+
+        let result: Result<(), usize> = match index {
+            Some(index) => {
+                match Board::from_fen(fens[index].to_string() + " 0 0").perft_test(
+                    1,
+                    depth,
+                    &mut Vec::new(),
+                ) {
+                    Ok(()) => Ok(()),
+                    Err(()) => Err(index),
+                }
+            }
+            None => {
+                let mut result = Err(());
+                let mut index = 0;
+                for (i, fen) in fens.into_iter().enumerate() {
+                    result = Board::from_fen(fen.to_string() + " 0 0").perft_test(
+                        1,
+                        depth,
+                        &mut Vec::new(),
+                    );
+                    match result {
+                        Ok(()) => (),
+                        Err(()) => {
+                            index = i;
+                            break;
+                        }
+                    }
+                }
+                match result {
+                    Ok(()) => Ok(()),
+                    Err(()) => Err(index),
+                }
+            }
+        };
+
+        match result {
+            Ok(()) => {
+                let _ = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open("test_result/perft")
+                    .unwrap();
+            }
+            Err(index) => {
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .open("test_result/perft")
+                    .unwrap();
+
+                let _ = file.write_fmt(format_args!("{}\n", depth));
+                let _ = file.write_fmt(format_args!("{}\n", seed));
+                let _ = file.write_fmt(format_args!("{}\n", index));
+            }
+        }
+    }
+
+    pub fn run_perft_multi_test(fen_file: &str, mut depth: i32) {
+        let seed;
+        let index;
+
+        match File::open("test_result/perft") {
+            Ok(result_file) => {
+                let reader = BufReader::new(&result_file);
+
+                let metadata = result_file.metadata().unwrap();
+                if metadata.len() == 0 {
+                    seed = None;
+                    index = None;
+                } else {
+                    let mut lines = reader.lines();
+
+                    depth = lines.next().unwrap().unwrap().trim().parse().unwrap();
+                    seed = Some(lines.next().unwrap().unwrap().trim().parse().unwrap());
+                    index = Some(lines.next().unwrap().unwrap().trim().parse().unwrap());
+                }
+            }
+            Err(_) => {
+                seed = None;
+                index = None;
+            }
+        }
+
+        Self::perft_multi_test(fen_file, depth, seed, index);
     }
 }

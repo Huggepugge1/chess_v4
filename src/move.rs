@@ -68,9 +68,17 @@ impl Move {
 
 impl Board {
     pub fn promote_pawn(&mut self, mov: &Move) {
-        self.pawns ^= 1 << mov.start_square;
+        self.pawns ^= match self.turn {
+            Color::White => 1 << i32::min(mov.start_square, mov.end_square),
+            Color::Black => 1 << i32::max(mov.start_square, mov.end_square),
+            Color::Empty => unreachable!(),
+        };
 
-        let bitmap = 1 << mov.end_square;
+        let bitmap = match self.turn {
+            Color::White => 1 << i32::max(mov.start_square, mov.end_square),
+            Color::Black => 1 << i32::min(mov.start_square, mov.end_square),
+            Color::Empty => unreachable!(),
+        };
 
         match mov.promotion {
             PieceType::Knight => self.knights ^= bitmap,
@@ -85,21 +93,27 @@ impl Board {
         let piece = self.get_piece(mov.start_square);
         let bitmap = (1 << mov.start_square) | (1 << mov.end_square);
 
+        match mov.promotion {
+            PieceType::Empty => (),
+            _ => self.promote_pawn(mov),
+        }
+
         match piece.color {
             Color::White => self.white_pieces ^= bitmap,
             Color::Black => self.black_pieces ^= bitmap,
             Color::Empty => {
                 self.print_board();
-                println!("{:?}", self.irreversible);
+                println!("fen: {}", self.fen);
+                for irr in &self.irreversible {
+                    print!("{}", irr.mov.as_string());
+                }
                 panic!("Tried to move an empty piece!: {piece:?} -> {mov:?}")
             }
         }
 
         match piece.typ {
             PieceType::Pawn => {
-                if mov.end_square.get_rank() == 0 || mov.end_square.get_rank() == 7 {
-                    self.promote_pawn(mov);
-                } else {
+                if mov.promotion == PieceType::Empty {
                     self.pawns ^= bitmap;
                     if i32::abs(mov.start_square - mov.end_square) == 16 {
                         self.en_passant_target = mov.end_square - self.turn as i32;
@@ -133,7 +147,14 @@ impl Board {
                     Color::Empty => unreachable!(),
                 }
             }
-            PieceType::Empty => panic!("Tried to move an empty piece!"),
+            PieceType::Empty => {
+                self.print_board();
+                println!("Fen: {}", self.fen);
+                for irr in &self.irreversible {
+                    print!("{} ", irr.mov.as_string());
+                }
+                panic!("Tried to move an empty piece!: {piece:?} -> {mov:?}")
+            }
         }
 
         match mov.end_square {
@@ -161,7 +182,14 @@ impl Board {
             PieceType::Rook => self.rooks ^= bitmap,
             PieceType::Queen => self.queens ^= bitmap,
             PieceType::King => self.kings ^= bitmap,
-            PieceType::Empty => panic!("Tried to toggle an empty piece!"),
+            PieceType::Empty => {
+                self.print_board();
+                println!("fen: {}", self.fen);
+                for irr in &self.irreversible {
+                    print!("{} ", irr.mov.as_string());
+                }
+                panic!("Tried to toggle an empty piece!: {square:?} -> {piece:?}")
+            }
         }
     }
 
