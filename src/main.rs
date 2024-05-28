@@ -8,6 +8,7 @@ mod move_generation;
 mod pawn_move_generation;
 mod sliding_pieces_move_generation;
 
+mod check;
 mod enemy_attacks;
 
 mod perft;
@@ -18,5 +19,5 @@ use crate::board::*;
 
 fn main() {
     let fen_file = "fens.txt";
-    board::Board::run_perft_multi_test(fen_file, 4);
+    board::Board::run_perft_multi_test(fen_file, 3);
 }

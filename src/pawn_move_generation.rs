@@ -67,127 +67,49 @@ impl Board {
         south_east_one(black_pawns) | south_west_one(black_pawns)
     }
 
-    pub fn generate_pinned_pawn_moves(
-        &mut self,
-        mut pawns: Bitmap,
-        mut check_capture_mask: Bitmap,
-        check_push_mask: Bitmap,
-    ) -> Vec<Move> {
-        let mut moves = Vec::new();
-        let empty = !(self.white_pieces | self.black_pieces);
-        let mut enemy_bitboard = match self.turn {
-            Color::White => self.black_pieces,
-            Color::Black => self.white_pieces,
-            Color::Empty => unreachable!(),
-        };
+    fn en_passant_check(&mut self, start_square: Square, end_square: Square) -> bool {
+        let enemy_square = end_square - self.turn as Square;
+        let enemy_piece = self.get_piece(enemy_square);
 
-        if self.en_passant_target != -1
-            && (check_capture_mask & (1 << (self.en_passant_target - self.turn as Square)) > 0
-                || check_push_mask & (1 << (self.en_passant_target)) > 0)
-        {
-            enemy_bitboard |= 1 << self.en_passant_target;
-            check_capture_mask |= 1 << self.en_passant_target;
+        self.toggle_piece(enemy_square, enemy_piece);
+        self.no_side_effect_move(&Move::new(start_square, end_square, PieceType::Empty));
+
+        if self.is_check() {
+            self.toggle_piece(enemy_square, enemy_piece);
+            self.no_side_effect_move(&Move::new(end_square, start_square, PieceType::Empty));
+            return false;
         }
+        self.toggle_piece(enemy_square, enemy_piece);
+        self.no_side_effect_move(&Move::new(end_square, start_square, PieceType::Empty));
 
-        while pawns > 0 {
-            let start_square = pawns.pop_lsb();
-            let pawn = 1 << start_square;
-
-            let mut end_squares = match self.turn {
-                Color::White => {
-                    Self::white_pawn_pushes(pawn, empty)
-                        | (Self::white_pawn_attacks(pawn) & enemy_bitboard)
-                }
-                Color::Black => {
-                    Self::black_pawn_pushes(pawn, empty)
-                        | (Self::black_pawn_attacks(pawn) & enemy_bitboard)
-                }
-
-                Color::Empty => unreachable!(),
-            } & self.get_full_pinned_ray(pawn)
-                & (check_capture_mask | check_push_mask);
-
-            while end_squares > 0 {
-                let end_square: Square = end_squares.pop_lsb();
-
-                if end_square == self.en_passant_target {
-                    let piece = self.get_piece(start_square);
-
-                    let enemy_square = end_square - self.turn as i32;
-                    let enemy = 1 << (enemy_square);
-                    let enemy_piece = self.get_piece(enemy_square);
-
-                    self.no_side_effect_move(&Move::new(
-                        start_square,
-                        end_square,
-                        PieceType::Empty,
-                    ));
-                    self.toggle_piece(enemy_square, enemy_piece);
-
-                    if self.get_pinned(pawn) > 0 {
-                        self.toggle_piece(enemy_square, enemy_piece);
-                        self.no_side_effect_move(&Move::new(
-                            end_square,
-                            start_square,
-                            PieceType::Empty,
-                        ));
-                        continue;
-                    }
-
-                    self.no_side_effect_move(&Move::new(
-                        end_square,
-                        start_square,
-                        PieceType::Empty,
-                    ));
-
-                    self.toggle_piece(start_square, piece);
-                    if self.get_pinned(enemy) > 0 {
-                        self.toggle_piece(start_square, piece);
-                        continue;
-                    }
-                    self.toggle_piece(start_square, piece);
-                }
-
-                if end_square >= 56 || end_square < 8 {
-                    for promotion in [
-                        PieceType::Knight,
-                        PieceType::Bishop,
-                        PieceType::Rook,
-                        PieceType::Queen,
-                    ] {
-                        moves.push(Move::new(start_square, end_square, promotion));
-                    }
-                } else {
-                    moves.push(Move::new(start_square, end_square, PieceType::Empty));
-                }
-            }
-        }
-
-        moves
+        true
     }
 
-    pub fn generate_non_pinned_pawn_moves(
+    pub fn generate_pawn_moves(
         &mut self,
-        mut pawns: Bitmap,
         mut check_capture_mask: Bitmap,
         check_push_mask: Bitmap,
+        pinned: Bitmap,
     ) -> Vec<Move> {
+        let mut pawns = match self.turn {
+            Color::White => self.white_pieces & self.pawns,
+            Color::Black => self.black_pieces & self.pawns,
+            Color::Empty => unreachable!(),
+        };
+
         let mut moves = Vec::new();
         let empty = !(self.white_pieces | self.black_pieces);
 
-        let mut enemy_bitboard = match self.turn {
-            Color::White => self.black_pieces,
-            Color::Black => self.white_pieces,
-            Color::Empty => unreachable!(),
-        };
+        let mut enemy_pieces = self.enemy_pieces();
 
         if self.en_passant_target != -1
             && (check_capture_mask & (1 << (self.en_passant_target - self.turn as Square)) > 0
                 || check_push_mask & (1 << (self.en_passant_target)) > 0)
         {
-            enemy_bitboard |= 1 << self.en_passant_target;
+            enemy_pieces |= 1 << self.en_passant_target;
             check_capture_mask |= 1 << self.en_passant_target;
         }
+
         while pawns > 0 {
             let start_square: Square = pawns.pop_lsb();
             let pawn = 1 << start_square;
@@ -195,55 +117,27 @@ impl Board {
             let mut end_squares = match self.turn {
                 Color::White => {
                     Self::white_pawn_pushes(pawn, empty)
-                        | (Self::white_pawn_attacks(pawn) & enemy_bitboard)
+                        | (Self::white_pawn_attacks(pawn) & enemy_pieces)
                 }
                 Color::Black => {
                     Self::black_pawn_pushes(pawn, empty)
-                        | (Self::black_pawn_attacks(pawn) & enemy_bitboard)
+                        | (Self::black_pawn_attacks(pawn) & enemy_pieces)
                 }
                 Color::Empty => unreachable!(),
-            } & (check_capture_mask | check_push_mask);
+            } & (check_capture_mask | check_push_mask)
+                & if pinned & pawn > 0 {
+                    self.get_full_pinned_ray(pawn)
+                } else {
+                    Bitmap::MAX
+                };
 
             while end_squares > 0 {
                 let end_square: Square = end_squares.pop_lsb();
 
-                if end_square == self.en_passant_target {
-                    let piece = self.get_piece(start_square);
-
-                    let enemy_square = end_square - self.turn as i32;
-                    let enemy = 1 << (enemy_square);
-                    let enemy_piece = self.get_piece(enemy_square);
-
-                    self.no_side_effect_move(&Move::new(
-                        start_square,
-                        end_square,
-                        PieceType::Empty,
-                    ));
-                    self.toggle_piece(enemy_square, enemy_piece);
-
-                    if self.get_pinned(pawn) > 0 {
-                        self.toggle_piece(enemy_square, enemy_piece);
-                        self.no_side_effect_move(&Move::new(
-                            end_square,
-                            start_square,
-                            PieceType::Empty,
-                        ));
-                        continue;
-                    }
-
-                    self.no_side_effect_move(&Move::new(
-                        end_square,
-                        start_square,
-                        PieceType::Empty,
-                    ));
-                    self.toggle_piece(enemy_square, enemy_piece);
-
-                    self.toggle_piece(start_square, piece);
-                    if self.get_pinned(enemy) > 0 {
-                        self.toggle_piece(start_square, piece);
-                        continue;
-                    }
-                    self.toggle_piece(start_square, piece);
+                if end_square == self.en_passant_target
+                    && !self.en_passant_check(start_square, end_square)
+                {
+                    continue;
                 }
 
                 if end_square >= 56 || end_square < 8 {
@@ -260,34 +154,6 @@ impl Board {
                 }
             }
         }
-
-        moves
-    }
-
-    pub fn generate_pawn_moves(
-        &mut self,
-        check_capture_mask: Bitmap,
-        check_push_mask: Bitmap,
-        pinned: Bitmap,
-    ) -> Vec<Move> {
-        let mut moves = Vec::new();
-        let pawns = match self.turn {
-            Color::White => self.white_pieces & self.pawns,
-            Color::Black => self.black_pieces & self.pawns,
-            Color::Empty => unreachable!(),
-        };
-
-        moves.append(&mut self.generate_non_pinned_pawn_moves(
-            pawns & !pinned,
-            check_capture_mask,
-            check_push_mask,
-        ));
-
-        moves.append(&mut self.generate_pinned_pawn_moves(
-            pawns & pinned,
-            check_capture_mask,
-            check_push_mask,
-        ));
 
         moves
     }

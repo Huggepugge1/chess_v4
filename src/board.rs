@@ -7,6 +7,7 @@ pub type Square = i32;
 pub type Bitmap = u64;
 
 pub trait BitOperations {
+    #[allow(dead_code)]
     fn print(self);
     fn lsb(&self) -> Square;
     fn pop_lsb(&mut self) -> Square;
@@ -39,6 +40,7 @@ impl BitOperations for Bitmap {
 
 pub trait SquareOperations {
     fn as_string(self) -> String;
+    #[allow(dead_code)]
     fn get_rank(self) -> u8;
 }
 
@@ -304,6 +306,7 @@ impl Board {
         }
     }
 
+    #[allow(dead_code)]
     pub fn print_move(mov: &Move) -> String {
         let promotion: char = match mov.promotion {
             PieceType::Rook => 'r',

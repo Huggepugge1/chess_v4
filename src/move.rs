@@ -1,8 +1,6 @@
 use crate::board::*;
 use crate::piece::*;
 
-use std::process::exit;
-
 #[derive(Debug, Clone, Copy)]
 pub struct Move {
     pub start_square: Square,
@@ -19,6 +17,7 @@ impl Move {
         }
     }
 
+    #[allow(dead_code)]
     pub fn print(&self) {
         println!("{}", self.as_string());
     }
@@ -92,7 +91,7 @@ impl Board {
     }
 
     pub fn no_side_effect_move(&mut self, mov: &Move) {
-        let mut piece = self.get_piece(mov.start_square);
+        let piece = self.get_piece(mov.start_square);
         let bitmap = (1 << mov.start_square) | (1 << mov.end_square);
 
         match piece.color {

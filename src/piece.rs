@@ -18,13 +18,6 @@ pub struct Piece {
 }
 
 impl Piece {
-    pub fn new() -> Self {
-        Piece {
-            typ: PieceType::Empty,
-            color: Color::Empty,
-        }
-    }
-
     pub fn is_slider(&self) -> bool {
         match self.typ {
             PieceType::Pawn => false,

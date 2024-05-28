@@ -5,10 +5,15 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{BufReader, Write};
-use std::process::{Command, Stdio};
+use std::process::{exit, Command, Stdio};
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use rand::prelude::*;
 use rand::rngs::StdRng;
+
+use rayon::prelude::*;
 
 impl Board {
     pub fn perft(&mut self, depth: i32) -> HashMap<String, i32> {
@@ -112,9 +117,7 @@ impl Board {
 
         for depth in min_depth..=max_depth {
             let mut fails = self.perft_result(depth, moves);
-            if fails.len() == 0 && moves.len() == 0 && min_depth != max_depth {
-                println!("Performance test OK at depth {depth}");
-            } else if fails.len() != 0 {
+            if fails.len() != 0 {
                 if min_depth != max_depth {
                     println!("Performance test FAILED at depth {depth}");
                     println!("Fen: {}", self.fen);
@@ -153,53 +156,73 @@ impl Board {
 
         fens.shuffle(&mut rng);
 
-        let result: Result<(), usize> = match index {
+        match index {
             Some(index) => {
-                match Board::from_fen(fens[index].to_string()).perft_test(1, depth, &mut Vec::new())
-                {
-                    Ok(()) => Ok(()),
-                    Err(()) => Err(index),
-                }
+                println!(
+                    "Running perft test at depth {depth} on fen: {}",
+                    fens[index]
+                );
+                let result =
+                    Board::from_fen(fens[index].to_string()).perft_test(1, depth, &mut Vec::new());
+                match result {
+                    Ok(()) => {
+                        let _ = OpenOptions::new()
+                            .write(true)
+                            .create(true)
+                            .truncate(true)
+                            .open("test_result/perft")
+                            .unwrap();
+                    }
+                    Err(()) => {
+                        let mut file = OpenOptions::new()
+                            .write(true)
+                            .create(true)
+                            .open("test_result/perft")
+                            .unwrap();
+
+                        let _ = file.write_fmt(format_args!("{}\n", depth));
+                        let _ = file.write_fmt(format_args!("{}\n", seed));
+                        let _ = file.write_fmt(format_args!("{}\n", index));
+                        exit(1);
+                    }
+                };
             }
             None => {
-                let mut result = Err(());
-                let mut index = 0;
-                for (i, fen) in fens.into_iter().enumerate() {
-                    result = Board::from_fen(fen.to_string()).perft_test(1, depth, &mut Vec::new());
-                    match result {
-                        Ok(()) => (),
-                        Err(()) => {
-                            index = i;
-                            break;
+                let counter = Arc::new(AtomicUsize::new(0));
+                let test_positions = fens.len();
+                fens.into_iter()
+                    .enumerate()
+                    .collect::<Vec<(usize, &str)>>()
+                    .par_iter()
+                    .for_each(|(i, fen)| {
+                        let count = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                        println!("{}%", count as f32 * 100f32 / test_positions as f32);
+                        println!("Running perft test at depth {depth} on fen: {fen}");
+                        let result =
+                            Board::from_fen(fen.to_string()).perft_test(1, depth, &mut Vec::new());
+                        match result {
+                            Ok(()) => {
+                                let _ = OpenOptions::new()
+                                    .write(true)
+                                    .create(true)
+                                    .truncate(true)
+                                    .open("test_result/perft")
+                                    .unwrap();
+                            }
+                            Err(()) => {
+                                let mut file = OpenOptions::new()
+                                    .write(true)
+                                    .create(true)
+                                    .open("test_result/perft")
+                                    .unwrap();
+
+                                let _ = file.write_fmt(format_args!("{}\n", depth));
+                                let _ = file.write_fmt(format_args!("{}\n", seed));
+                                let _ = file.write_fmt(format_args!("{}\n", i));
+                                exit(1);
+                            }
                         }
-                    }
-                }
-                match result {
-                    Ok(()) => Ok(()),
-                    Err(()) => Err(index),
-                }
-            }
-        };
-
-        match result {
-            Ok(()) => {
-                let _ = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open("test_result/perft")
-                    .unwrap();
-            }
-            Err(index) => {
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .open("test_result/perft")
-                    .unwrap();
-
-                let _ = file.write_fmt(format_args!("{}\n", depth));
-                let _ = file.write_fmt(format_args!("{}\n", seed));
-                let _ = file.write_fmt(format_args!("{}\n", index));
+                    });
             }
         }
     }
