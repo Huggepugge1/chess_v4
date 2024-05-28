@@ -155,6 +155,29 @@ pub struct Board {
 impl Board {
     pub fn new() -> Self {
         Board {
+            white_pieces: 0xFFFF,
+            black_pieces: 0xFFFF000000000000,
+
+            pawns: 0x00FF00000000FF00,
+            knights: 0x4200000000000042,
+            bishops: 0x2400000000000024,
+            rooks: 0x8100000000000081,
+            queens: 0x0800000000000008,
+            kings: 0x1000000000000010,
+
+            castling_rights: CastlingRights::new(),
+            turn: Color::White,
+            en_passant_target: -1,
+            half_move_clock: 0,
+            full_move_clock: 0,
+
+            irreversible: Vec::new(),
+            fen: String::new(),
+        }
+    }
+
+    pub fn empty_board() -> Self {
+        Board {
             white_pieces: 0,
             black_pieces: 0,
 
@@ -325,7 +348,7 @@ impl Board {
     }
 
     pub fn from_fen(fen: String) -> Self {
-        let mut board = Board::new();
+        let mut board = Board::empty_board();
         board.fen = fen.clone();
 
         let mut parts = fen.split(" ");

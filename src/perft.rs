@@ -1,5 +1,5 @@
+use crate::board::Board;
 use crate::r#move::Move;
-use crate::Board;
 
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
