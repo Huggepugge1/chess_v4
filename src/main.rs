@@ -12,6 +12,8 @@ mod enemy_attacks;
 
 mod perft;
 
+mod pgn_to_fen;
+
 use crate::board::*;
 
 fn main() {

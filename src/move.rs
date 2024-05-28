@@ -91,6 +91,41 @@ impl Board {
         }
     }
 
+    pub fn no_side_effect_move(&mut self, mov: &Move) {
+        let mut piece = self.get_piece(mov.start_square);
+        let bitmap = (1 << mov.start_square) | (1 << mov.end_square);
+
+        match piece.color {
+            Color::White => self.white_pieces ^= bitmap,
+            Color::Black => self.black_pieces ^= bitmap,
+            Color::Empty => {
+                self.print_board();
+                println!("fen: {}", self.fen);
+                for irr in &self.irreversible {
+                    print!("{}", irr.mov.as_string());
+                }
+                panic!("Tried to move an empty piece!: {piece:?} -> {mov:?}")
+            }
+        }
+
+        match piece.typ {
+            PieceType::Pawn => self.pawns ^= bitmap,
+            PieceType::Knight => self.knights ^= bitmap,
+            PieceType::Bishop => self.bishops ^= bitmap,
+            PieceType::Rook => self.rooks ^= bitmap,
+            PieceType::Queen => self.queens ^= bitmap,
+            PieceType::King => self.kings ^= bitmap,
+            PieceType::Empty => {
+                self.print_board();
+                println!("Fen: {}", self.fen);
+                for irr in &self.irreversible {
+                    print!("{} ", irr.mov.as_string());
+                }
+                panic!("Tried to move an empty piece!: {piece:?} -> {mov:?}")
+            }
+        }
+    }
+
     pub fn move_piece(&mut self, mov: &Move) {
         let mut piece = self.get_piece(mov.start_square);
         let bitmap = (1 << mov.start_square) | (1 << mov.end_square);

@@ -155,11 +155,8 @@ impl Board {
 
         let result: Result<(), usize> = match index {
             Some(index) => {
-                match Board::from_fen(fens[index].to_string() + " 0 0").perft_test(
-                    1,
-                    depth,
-                    &mut Vec::new(),
-                ) {
+                match Board::from_fen(fens[index].to_string()).perft_test(1, depth, &mut Vec::new())
+                {
                     Ok(()) => Ok(()),
                     Err(()) => Err(index),
                 }
@@ -168,11 +165,7 @@ impl Board {
                 let mut result = Err(());
                 let mut index = 0;
                 for (i, fen) in fens.into_iter().enumerate() {
-                    result = Board::from_fen(fen.to_string() + " 0 0").perft_test(
-                        1,
-                        depth,
-                        &mut Vec::new(),
-                    );
+                    result = Board::from_fen(fen.to_string()).perft_test(1, depth, &mut Vec::new());
                     match result {
                         Ok(()) => (),
                         Err(()) => {

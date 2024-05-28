@@ -70,16 +70,24 @@ impl Board {
     pub fn generate_pinned_pawn_moves(
         &mut self,
         mut pawns: Bitmap,
-        check_capture_mask: Bitmap,
+        mut check_capture_mask: Bitmap,
         check_push_mask: Bitmap,
     ) -> Vec<Move> {
         let mut moves = Vec::new();
         let empty = !(self.white_pieces | self.black_pieces);
-        let enemy_bitboard = match self.turn {
+        let mut enemy_bitboard = match self.turn {
             Color::White => self.black_pieces,
             Color::Black => self.white_pieces,
             Color::Empty => unreachable!(),
         };
+
+        if self.en_passant_target != -1
+            && (check_capture_mask & (1 << (self.en_passant_target - self.turn as Square)) > 0
+                || check_push_mask & (1 << (self.en_passant_target)) > 0)
+        {
+            enemy_bitboard |= 1 << self.en_passant_target;
+            check_capture_mask |= 1 << self.en_passant_target;
+        }
 
         while pawns > 0 {
             let start_square = pawns.pop_lsb();
@@ -101,6 +109,44 @@ impl Board {
 
             while end_squares > 0 {
                 let end_square: Square = end_squares.pop_lsb();
+
+                if end_square == self.en_passant_target {
+                    let piece = self.get_piece(start_square);
+
+                    let enemy_square = end_square - self.turn as i32;
+                    let enemy = 1 << (enemy_square);
+                    let enemy_piece = self.get_piece(enemy_square);
+
+                    self.no_side_effect_move(&Move::new(
+                        start_square,
+                        end_square,
+                        PieceType::Empty,
+                    ));
+                    self.toggle_piece(enemy_square, enemy_piece);
+
+                    if self.get_pinned(pawn) > 0 {
+                        self.toggle_piece(enemy_square, enemy_piece);
+                        self.no_side_effect_move(&Move::new(
+                            end_square,
+                            start_square,
+                            PieceType::Empty,
+                        ));
+                        continue;
+                    }
+
+                    self.no_side_effect_move(&Move::new(
+                        end_square,
+                        start_square,
+                        PieceType::Empty,
+                    ));
+
+                    self.toggle_piece(start_square, piece);
+                    if self.get_pinned(enemy) > 0 {
+                        self.toggle_piece(start_square, piece);
+                        continue;
+                    }
+                    self.toggle_piece(start_square, piece);
+                }
 
                 if end_square >= 56 || end_square < 8 {
                     for promotion in [
@@ -168,13 +214,30 @@ impl Board {
                     let enemy = 1 << (enemy_square);
                     let enemy_piece = self.get_piece(enemy_square);
 
+                    self.no_side_effect_move(&Move::new(
+                        start_square,
+                        end_square,
+                        PieceType::Empty,
+                    ));
                     self.toggle_piece(enemy_square, enemy_piece);
+
                     if self.get_pinned(pawn) > 0 {
                         self.toggle_piece(enemy_square, enemy_piece);
+                        self.no_side_effect_move(&Move::new(
+                            end_square,
+                            start_square,
+                            PieceType::Empty,
+                        ));
                         continue;
                     }
 
+                    self.no_side_effect_move(&Move::new(
+                        end_square,
+                        start_square,
+                        PieceType::Empty,
+                    ));
                     self.toggle_piece(enemy_square, enemy_piece);
+
                     self.toggle_piece(start_square, piece);
                     if self.get_pinned(enemy) > 0 {
                         self.toggle_piece(start_square, piece);
