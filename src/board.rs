@@ -3,6 +3,8 @@ use crate::r#move::*;
 
 use const_for::const_for;
 
+use std::hash::{Hash, Hasher};
+
 pub type Square = i32;
 pub type Bitmap = u64;
 
@@ -41,7 +43,8 @@ impl BitOperations for Bitmap {
 pub trait SquareOperations {
     fn as_string(self) -> String;
     #[allow(dead_code)]
-    fn get_rank(self) -> u8;
+    fn rank(self) -> u8;
+    fn file(self) -> u8;
 }
 
 pub trait ToSquare {
@@ -54,8 +57,12 @@ impl SquareOperations for Square {
             + &(('1' as Square + (self / 8)) as u8 as char).to_string()
     }
 
-    fn get_rank(self) -> u8 {
+    fn rank(self) -> u8 {
         (self / 8) as u8
+    }
+
+    fn file(self) -> u8 {
+        (self % 8) as u8
     }
 }
 
@@ -99,6 +106,37 @@ pub struct Irreversible {
     pub half_move_clock: u8,
     pub captured_piece: Piece,
     pub mov: Move,
+}
+
+pub enum ZobristPosition {
+    WhitePawn = 0,
+    WhiteKnight = 64,
+    WhiteBishop = 128,
+    WhiteRook = 192,
+    WhiteQueen = 256,
+    WhiteKing = 320,
+    BlackPawn = 384,
+    BlackKnight = 448,
+    BlackBishop = 512,
+    BlackRook = 576,
+    BlackQueen = 640,
+    BlackKing = 704,
+
+    SideToMove = 705,
+
+    WhiteKingCastle = 706,
+    WhiteQueenCastle = 707,
+    BlackKingCastle = 708,
+    BlackQueenCastle = 709,
+
+    EnPassant0 = 710,
+    EnPassant1 = 711,
+    EnPassant2 = 712,
+    EnPassant3 = 713,
+    EnPassant4 = 714,
+    EnPassant5 = 715,
+    EnPassant6 = 716,
+    EnPassant7 = 717,
 }
 
 const fn generate_rectangular() -> [[Bitmap; 64]; 64] {
@@ -150,11 +188,21 @@ pub struct Board {
     pub irreversible: Vec<Irreversible>,
 
     pub fen: String,
+
+    pub zobrist: u64,
+    pub zobrist_array: [u64; 781],
+}
+
+impl Hash for Board {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.zobrist.hash(state);
+    }
 }
 
 impl Board {
     pub fn new() -> Self {
-        Board {
+        let zobrist_array = [rand::random(); 781];
+        let mut board = Board {
             white_pieces: 0xFFFF,
             black_pieces: 0xFFFF000000000000,
 
@@ -173,7 +221,14 @@ impl Board {
 
             irreversible: Vec::new(),
             fen: String::new(),
-        }
+
+            zobrist_array,
+            zobrist: 0,
+        };
+
+        board.zobrist_init();
+
+        board
     }
 
     pub fn empty_board() -> Self {
@@ -196,6 +251,9 @@ impl Board {
 
             irreversible: Vec::new(),
             fen: String::new(),
+
+            zobrist_array: [rand::random(); 781],
+            zobrist: 0,
         }
     }
 
@@ -225,6 +283,95 @@ impl Board {
         };
 
         Piece { typ, color }
+    }
+
+    pub fn zobrist_init(&mut self) {
+        for square in 0..64 {
+            self.zobrist_change_square(square);
+        }
+
+        match self.turn {
+            Color::White => (),
+            Color::Black => {
+                self.zobrist ^= self.zobrist_array[ZobristPosition::SideToMove as usize]
+            }
+            Color::Empty => unreachable!(),
+        }
+
+        if self.en_passant_target != -1 {
+            match self.en_passant_target.file() {
+                0 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant0 as usize],
+                1 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant1 as usize],
+                2 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant2 as usize],
+                3 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant3 as usize],
+                4 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant4 as usize],
+                5 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant5 as usize],
+                6 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant6 as usize],
+                7 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant7 as usize],
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    pub fn zobrist_change_square(&mut self, square: Square) {
+        let Piece { typ, color } = self.get_piece(square);
+        match color {
+            Color::White => match typ {
+                PieceType::Pawn => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::WhitePawn as usize + square as usize]
+                }
+                PieceType::Knight => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::WhiteKnight as usize + square as usize]
+                }
+                PieceType::Bishop => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::WhiteBishop as usize + square as usize]
+                }
+                PieceType::Rook => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::WhiteRook as usize + square as usize]
+                }
+                PieceType::Queen => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::WhiteQueen as usize + square as usize]
+                }
+                PieceType::King => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::WhiteKing as usize + square as usize]
+                }
+                PieceType::Empty => unreachable!(),
+            },
+            Color::Black => match typ {
+                PieceType::Pawn => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::BlackPawn as usize + square as usize]
+                }
+                PieceType::Knight => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::BlackKnight as usize + square as usize]
+                }
+                PieceType::Bishop => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::BlackBishop as usize + square as usize]
+                }
+                PieceType::Rook => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::BlackRook as usize + square as usize]
+                }
+                PieceType::Queen => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::BlackQueen as usize + square as usize]
+                }
+                PieceType::King => {
+                    self.zobrist ^=
+                        self.zobrist_array[ZobristPosition::BlackKing as usize + square as usize]
+                }
+                PieceType::Empty => unreachable!(),
+            },
+            Color::Empty => (),
+        }
     }
 
     pub fn own_pieces(&self) -> Bitmap {
@@ -420,6 +567,8 @@ impl Board {
 
         board.half_move_clock = halfmove_clock.parse().unwrap();
         board.full_move_clock = fullmove_clock.parse().unwrap();
+
+        board.zobrist_init();
 
         board
     }

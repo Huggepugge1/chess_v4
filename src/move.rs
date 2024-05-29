@@ -1,7 +1,7 @@
 use crate::board::*;
 use crate::piece::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Move {
     pub start_square: Square,
     pub end_square: Square,
@@ -83,6 +83,12 @@ impl Board {
             Color::Empty => unreachable!(),
         };
 
+        match self.turn {
+            Color::White => self.zobrist_change_square(i32::min(mov.start_square, mov.end_square)),
+            Color::Black => self.zobrist_change_square(i32::max(mov.start_square, mov.end_square)),
+            Color::Empty => unreachable!(),
+        }
+
         let bitmap = match self.turn {
             Color::White => 1 << i32::max(mov.start_square, mov.end_square),
             Color::Black => 1 << i32::min(mov.start_square, mov.end_square),
@@ -95,6 +101,12 @@ impl Board {
             PieceType::Rook => self.rooks ^= bitmap,
             PieceType::Queen => self.queens ^= bitmap,
             _ => panic!("Tried to promote to a {:?}!", mov.promotion),
+        }
+
+        match self.turn {
+            Color::White => self.zobrist_change_square(i32::max(mov.start_square, mov.end_square)),
+            Color::Black => self.zobrist_change_square(i32::min(mov.start_square, mov.end_square)),
+            Color::Empty => unreachable!(),
         }
     }
 
@@ -136,6 +148,8 @@ impl Board {
     pub fn move_piece(&mut self, mov: &Move) {
         let mut piece = self.get_piece(mov.start_square);
         let bitmap = (1 << mov.start_square) | (1 << mov.end_square);
+
+        self.zobrist_change_square(mov.end_square);
 
         if mov.promotion != PieceType::Empty {
             piece.typ = PieceType::Pawn;

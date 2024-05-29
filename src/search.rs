@@ -62,7 +62,7 @@ impl Board {
 
         match wtime {
             Some(_) => {
-                max_depth = 5;
+                max_depth = 4;
             }
             None => (),
         }
