@@ -92,7 +92,7 @@ impl CastlingRights {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Irreversible {
     pub en_passant_target: Square,
     pub castling_rights: CastlingRights,
@@ -128,7 +128,7 @@ const fn generate_rectangular() -> [[Bitmap; 64]; 64] {
 
 const RECTANGULAR: [[Bitmap; 64]; 64] = generate_rectangular();
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Board {
     pub white_pieces: Bitmap,
     pub black_pieces: Bitmap,

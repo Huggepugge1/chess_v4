@@ -4,10 +4,14 @@ use crate::r#move::Move;
 use crate::eval::Eval;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use std::thread;
 use std::time::Duration;
+
+use rayon::prelude::*;
+
+use crossbeam::queue::SegQueue;
 
 pub type SearchMoves = Vec<(Move, Eval)>;
 
@@ -71,19 +75,29 @@ impl Board {
             return vec![(Move::null(), self.eval())];
         }
 
-        let mut result = Vec::new();
+        let result = Arc::new(SegQueue::new());
 
-        for mov in self.generate_moves() {
-            self.make_move(&mov);
-            result.push((mov, self.minimax(depth - 1, stopper)[0].1));
-            self.unmake_move(&mov);
+        self.generate_moves().par_iter().for_each(|mov| {
+            let mut board = self.clone();
+            board.make_move(&mov);
+            result.push((mov.clone(), board.minimax(depth - 1, stopper)[0].1));
+            board.unmake_move(&mov);
+        });
+
+        let mut final_result = Vec::new();
+        while let Some(res) = result.pop() {
+            final_result.push(res);
+        }
+
+        if final_result.len() == 0 {
+            return vec![(Move::null(), score)];
         }
 
         match self.turn {
-            Color::White => result.sort_by(|(_, eval1), (_, eval2)| eval2.cmp(eval1)),
-            Color::Black => result.sort_by(|(_, eval1), (_, eval2)| eval1.cmp(eval2)),
+            Color::White => final_result.sort_by(|(_, eval1), (_, eval2)| eval2.cmp(eval1)),
+            Color::Black => final_result.sort_by(|(_, eval1), (_, eval2)| eval1.cmp(eval2)),
             Color::Empty => unreachable!(),
         }
-        result
+        final_result
     }
 }

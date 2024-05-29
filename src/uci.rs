@@ -3,6 +3,9 @@ use crate::r#move::Move;
 use crate::search::Stopper;
 
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
+use std::thread;
 
 use std::iter::from_fn;
 
@@ -71,24 +74,28 @@ pub fn handle_input(input: String, mut board: Board, stopper: &Stopper) -> Board
                 "depth" => match input.next() {
                     Some(string) => match string.parse() {
                         Ok(depth) => {
-                            let result = board.search(
-                                None,
-                                None,
-                                None,
-                                None,
-                                None,
-                                Some(depth),
-                                None,
-                                None,
-                                None,
-                                stopper,
-                            )[0]
-                            .0
-                            .as_string();
-                            match result.as_str() {
-                                "`1`1" => println!("Did not find any legal moves!"),
-                                mov => println!("Bestmove: {mov}"),
-                            }
+                            let mut board = board.clone();
+                            let stopper = Arc::clone(stopper);
+                            thread::spawn(move || {
+                                let result = board.search(
+                                    None,
+                                    None,
+                                    None,
+                                    None,
+                                    None,
+                                    Some(depth),
+                                    None,
+                                    None,
+                                    None,
+                                    &stopper,
+                                )[0]
+                                .0
+                                .as_string();
+                                match result.as_str() {
+                                    "`1`1" => println!("Did not find any legal moves!"),
+                                    mov => println!("Bestmove: {mov}"),
+                                }
+                            });
                         }
                         Err(_) => println!("\n{string}\n is not a valid number!"),
                     },
