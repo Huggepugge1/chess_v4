@@ -1,6 +1,6 @@
 use crate::board::Color;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum PieceType {
     Pawn = 100,
     Knight = 349,

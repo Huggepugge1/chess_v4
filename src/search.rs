@@ -3,8 +3,10 @@ use crate::r#move::Move;
 
 use crate::eval::Eval;
 
+use std::collections::HashSet;
+
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use std::thread;
 use std::time::Duration;
@@ -65,12 +67,12 @@ impl Board {
             None => (),
         }
 
-        let alpha = match self.turn {
-            Color::White => Eval::MIN + 1,
-            Color::Black => Eval::MAX,
+        let mut alpha = match self.turn {
+            Color::White => -1000000,
+            Color::Black => 1000000,
             Color::Empty => unreachable!(),
         };
-        let beta = -alpha;
+        let mut beta = -alpha;
 
         let mut depth = 1;
         let mut moves = self
@@ -79,9 +81,34 @@ impl Board {
             .map(|mov| (mov.clone(), alpha))
             .collect::<Vec<_>>();
 
-        while depth <= max_depth {
-            moves = self.negamax(depth, alpha, beta, moves, stopper);
+        let mut lower_window = self.turn as Eval * 3;
+        let mut upper_window = self.turn as Eval * 3;
 
+        while depth <= max_depth {
+            if stopper.load(Ordering::SeqCst) {
+                return moves;
+            }
+            let result = self.negamax(depth, alpha, beta, moves.clone(), stopper);
+            let best_move = result[0].0;
+            let score = result[0].1;
+
+            if best_move == Move::null() || score == alpha {
+                if score == beta {
+                    lower_window *= 4;
+                } else if score == alpha {
+                    upper_window *= 4;
+                }
+                alpha = score - lower_window;
+                beta = score + upper_window;
+                continue;
+            }
+
+            lower_window = self.turn as Eval * 3;
+            upper_window = self.turn as Eval * 3;
+            alpha = score - lower_window;
+            beta = score + upper_window;
+
+            moves = result;
             depth += 1;
         }
 

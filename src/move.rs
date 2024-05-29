@@ -1,7 +1,7 @@
 use crate::board::*;
 use crate::piece::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Move {
     pub start_square: Square,
     pub end_square: Square,
