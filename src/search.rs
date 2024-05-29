@@ -35,7 +35,7 @@ impl Board {
         winc: Time,
         binc: Time,
         moves_to_go: MoveCount,
-        depth: Depth,
+        max_depth: Depth,
         nodes: Nodes,
         mate: MoveCount,
         movetime: Time,
@@ -53,25 +53,49 @@ impl Board {
             }
             None => (),
         }
-        let mut depth = match depth {
+        let mut max_depth = match max_depth {
             Some(depth) => depth,
             None => u16::MAX,
         };
 
         match wtime {
             Some(_) => {
-                depth = 4;
+                max_depth = 5;
             }
             None => (),
         }
 
-        let alpha = Eval::MIN + 1;
-        let beta = Eval::MAX;
+        let alpha = match self.turn {
+            Color::White => Eval::MIN + 1,
+            Color::Black => Eval::MAX,
+            Color::Empty => unreachable!(),
+        };
+        let beta = -alpha;
 
-        self.negamax(depth, alpha, beta, stopper)
+        let mut depth = 1;
+        let mut moves = self
+            .generate_moves()
+            .iter()
+            .map(|mov| (mov.clone(), alpha))
+            .collect::<Vec<_>>();
+
+        while depth <= max_depth {
+            moves = self.negamax(depth, alpha, beta, moves, stopper);
+
+            depth += 1;
+        }
+
+        moves
     }
 
-    fn negamax(&mut self, depth: u16, alpha: Eval, beta: Eval, stopper: &Stopper) -> SearchMoves {
+    fn negamax(
+        &mut self,
+        depth: u16,
+        alpha: Eval,
+        beta: Eval,
+        moves: SearchMoves,
+        stopper: &Stopper,
+    ) -> SearchMoves {
         if stopper.load(Ordering::SeqCst) {
             return vec![(Move::null(), alpha)];
         }
@@ -84,14 +108,20 @@ impl Board {
         let break_out = Arc::new(AtomicBool::new(false));
         let alpha = Arc::new(AtomicEval::new(alpha));
 
-        self.generate_moves().par_iter().for_each(|mov| {
+        moves.par_iter().for_each(|(mov, _)| {
             if break_out.load(Ordering::SeqCst) {
                 return;
             }
             let mut board = self.clone();
             board.make_move(&mov);
-            let score =
-                -board.negamax(depth - 1, -beta, -alpha.load(Ordering::SeqCst), stopper)[0].1;
+            let alpha_clone = alpha.load(Ordering::SeqCst);
+            let moves = board
+                .generate_moves()
+                .iter()
+                .map(|mov| (mov.clone(), alpha_clone))
+                .collect::<Vec<_>>();
+
+            let score = -board.negamax(depth - 1, -beta, -alpha_clone, moves, stopper)[0].1;
 
             board.unmake_move(&mov);
 
