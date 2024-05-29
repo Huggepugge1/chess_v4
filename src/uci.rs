@@ -1,15 +1,14 @@
 use crate::board::Board;
-use crate::perft;
 use crate::r#move::Move;
+use crate::search::Stopper;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use std::iter::from_fn;
 
 use std::process::exit;
 
-pub fn handle_input(input: String, mut board: Board, stopper: &Arc<AtomicBool>) -> Board {
+pub fn handle_input(input: String, mut board: Board, stopper: &Stopper) -> Board {
     let mut input = input[..input.len() - 1].split(" ").peekable();
     match input.next().unwrap() {
         "uci" => {
@@ -69,11 +68,42 @@ pub fn handle_input(input: String, mut board: Board, stopper: &Arc<AtomicBool>) 
                     },
                     None => println!("perft needs a depth!"),
                 },
+                "depth" => match input.next() {
+                    Some(string) => match string.parse() {
+                        Ok(depth) => {
+                            let result = board.search(
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                Some(depth),
+                                None,
+                                None,
+                                None,
+                                stopper,
+                            )[0]
+                            .0
+                            .as_string();
+                            match result.as_str() {
+                                "`1`1" => println!("Did not find any legal moves!"),
+                                mov => println!("Bestmove: {mov}"),
+                            }
+                        }
+                        Err(_) => println!("\n{string}\n is not a valid number!"),
+                    },
+                    None => println!("perft needs a depth!"),
+                },
                 argument => {
                     println!("\"{argument}\" is not implemented!");
                 }
             },
-            None => println!("Not yet implemented!"),
+            None => {
+                let result = board.search(
+                    None, None, None, None, None, None, None, None, None, stopper,
+                );
+                println!("{result:?}");
+            }
         },
         "print_board" => board.print_board(),
         "stop" => stopper.store(true, Ordering::SeqCst),

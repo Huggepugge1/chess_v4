@@ -13,7 +13,10 @@ mod enemy_attacks;
 
 mod uci;
 
+mod eval;
 mod perft;
+mod search;
+
 mod pgn_to_fen;
 
 use std::sync::atomic::AtomicBool;

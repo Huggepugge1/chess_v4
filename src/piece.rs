@@ -2,12 +2,12 @@ use crate::board::Color;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum PieceType {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King,
+    Pawn = 100,
+    Knight = 349,
+    Bishop = 350,
+    Rook = 525,
+    Queen = 1000,
+    King = 20000,
     Empty,
 }
 

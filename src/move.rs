@@ -17,6 +17,14 @@ impl Move {
         }
     }
 
+    pub fn null() -> Self {
+        Move {
+            start_square: -1,
+            end_square: -1,
+            promotion: PieceType::Empty,
+        }
+    }
+
     #[allow(dead_code)]
     pub fn print(&self) {
         println!("{}", self.as_string());

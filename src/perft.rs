@@ -33,6 +33,7 @@ impl Board {
         result
     }
 
+    #[allow(dead_code)]
     pub fn perft_result(&mut self, depth: i32, moves: &Vec<String>) -> Vec<(String, i32, i32)> {
         let mut stockfish_result: HashMap<String, i32> = HashMap::new();
         let mut fails: Vec<(String, i32, i32)> = Vec::new();
@@ -104,6 +105,7 @@ impl Board {
         fails
     }
 
+    #[allow(dead_code)]
     pub fn perft_test(
         &mut self,
         min_depth: i32,
@@ -139,6 +141,7 @@ impl Board {
         return Ok(());
     }
 
+    #[allow(dead_code)]
     pub fn perft_multi_test(file: &str, depth: i32, seed: Option<u64>, index: Option<usize>) {
         let mut file = File::open(file).unwrap();
         let mut contents = String::new();
@@ -227,6 +230,7 @@ impl Board {
         }
     }
 
+    #[allow(dead_code)]
     pub fn run_perft_multi_test(fen_file: &str, mut depth: i32) {
         let seed;
         let index;
