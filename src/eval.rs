@@ -29,7 +29,7 @@ impl Board {
         self.turn = turn;
         self.en_passant_target = en_passant_target;
 
-        PieceType::Queen as Eval
+        (PieceType::Queen as Eval
             * (white_queens.count_ones() as Eval - black_queens.count_ones() as Eval)
             + PieceType::Rook as Eval
                 * (white_rooks.count_ones() as Eval - black_rooks.count_ones() as Eval)
@@ -39,6 +39,8 @@ impl Board {
                 * (white_knights.count_ones() as Eval - black_knights.count_ones() as Eval)
             + PieceType::Pawn as Eval
                 * (white_pawns.count_ones() as Eval - black_pawns.count_ones() as Eval)
-            + 10 * (white_moves as Eval - black_moves as Eval)
+            + 10 * (white_moves as Eval - black_moves as Eval))
+            * self.turn as Eval
+            / 8
     }
 }
