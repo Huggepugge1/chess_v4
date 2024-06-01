@@ -1,4 +1,4 @@
-use crate::board::Board;
+use crate::board::{Board, Color};
 use crate::piece::PieceType;
 use crate::r#move::Move;
 
@@ -64,16 +64,27 @@ impl Board {
             }
             None => (),
         }
-        let mut max_depth = match max_depth {
+        let max_depth = match max_depth {
             Some(depth) => depth,
             None => u16::MAX,
         };
 
-        match wtime {
-            Some(_) => {
-                max_depth = 4;
-            }
-            None => (),
+        match self.turn {
+            Color::White => match wtime {
+                Some(white_time) => {
+                    let stopper_clone = Arc::clone(stopper);
+                    thread::spawn(move || timer(white_time / 40, &stopper_clone));
+                }
+                None => (),
+            },
+            Color::Black => match btime {
+                Some(black_time) => {
+                    let stopper_clone = Arc::clone(stopper);
+                    thread::spawn(move || timer(black_time / 40, &stopper_clone));
+                }
+                None => (),
+            },
+            Color::Empty => unreachable!(),
         }
 
         let mut alpha = -Eval::MAX + 100;
@@ -162,7 +173,7 @@ impl Board {
         stopper: &Stopper,
     ) -> SearchMoves {
         if moves.len() == 0 {
-            return vec![(Move::null(), alpha)];
+            return vec![(Move::null(), beta)];
         }
 
         if stopper.load(Ordering::SeqCst) {
