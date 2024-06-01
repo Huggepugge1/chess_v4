@@ -1,4 +1,4 @@
-use crate::board::{Board, Color};
+use crate::board::Board;
 use crate::piece::PieceType;
 use crate::r#move::Move;
 
@@ -76,11 +76,7 @@ impl Board {
             None => (),
         }
 
-        let mut alpha = match self.turn {
-            Color::White => -1000000,
-            Color::Black => 1000000,
-            Color::Empty => unreachable!(),
-        };
+        let mut alpha = -Eval::MAX + 100;
         let mut beta = -alpha;
 
         let mut depth = 1;
@@ -89,17 +85,21 @@ impl Board {
         let mut moves = self
             .generate_moves()
             .iter()
-            .map(|mov| (mov.clone(), alpha))
+            .map(|mov| (mov.clone(), beta))
             .collect::<Vec<_>>();
 
-        let mut lower_window = self.turn as Eval * 3;
-        let mut upper_window = self.turn as Eval * 3;
+        let mut lower_window = 25;
+        let mut upper_window = 25;
+
+        let mut previous_score = alpha;
 
         while depth <= max_depth {
-            let transposition_clone = transposition_table.lock().unwrap().clone();
             if stopper.load(Ordering::SeqCst) {
                 return moves;
             }
+
+            let transposition_clone = transposition_table.lock().unwrap().clone();
+
             let result = self.negamax(
                 depth,
                 alpha,
@@ -112,22 +112,38 @@ impl Board {
             let score = result[0].1;
 
             if best_move == Move::null() || score == alpha {
+                println!(
+                    "{:?} score: {} alpha: {} beta: {} lower: {} upper: {}",
+                    best_move.as_string(),
+                    score,
+                    alpha,
+                    beta,
+                    lower_window,
+                    upper_window
+                );
+                // fail low
                 if score == beta {
-                    lower_window *= 4;
-                } else if score == alpha {
                     upper_window *= 4;
+
+                // fail high
+                } else if score == alpha {
+                    lower_window *= 4;
                 }
-                alpha = score - lower_window;
-                beta = score + upper_window;
+
+                alpha = previous_score - lower_window;
+                beta = previous_score + upper_window;
 
                 transposition_table = Arc::new(Mutex::new(transposition_clone));
                 continue;
             }
 
-            lower_window = self.turn as Eval * 3;
-            upper_window = self.turn as Eval * 3;
+            lower_window = 25;
+            upper_window = 25;
+
             alpha = score - lower_window;
             beta = score + upper_window;
+
+            previous_score = score;
 
             moves = result;
             depth += 1;
@@ -145,12 +161,16 @@ impl Board {
         transposition_table: Arc<Mutex<TranspositionTable>>,
         stopper: &Stopper,
     ) -> SearchMoves {
+        if moves.len() == 0 {
+            return vec![(Move::null(), -Eval::MAX + 1000)];
+        }
+
         if stopper.load(Ordering::SeqCst) {
             return vec![(Move::null(), alpha)];
         }
 
         if depth == 0 {
-            return self.quiescence_search(alpha, beta, moves, stopper);
+            return vec![(Move::null(), self.eval())];
         }
 
         match transposition_table.lock().unwrap().get(self) {
