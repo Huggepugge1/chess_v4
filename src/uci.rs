@@ -163,6 +163,21 @@ pub fn handle_input(input: String, mut board: Board, stopper: &Stopper) -> Board
                             return board;
                         }
                     },
+                    "movetime" => match input.next() {
+                        Some(string) => match string.parse() {
+                            Ok(value) => {
+                                binc = Some(value);
+                            }
+                            Err(_) => {
+                                println!("\"{string}\" is not a valid number!");
+                                return board;
+                            }
+                        },
+                        None => {
+                            println!("\"movetime\" param needs a movetime!");
+                            return board;
+                        }
+                    },
                     argument => {
                         println!("\"{argument}\" is not implemented!");
                         return board;
