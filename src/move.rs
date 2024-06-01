@@ -84,8 +84,14 @@ impl Board {
         };
 
         match self.turn {
-            Color::White => self.zobrist_change_square(i32::min(mov.start_square, mov.end_square)),
-            Color::Black => self.zobrist_change_square(i32::max(mov.start_square, mov.end_square)),
+            Color::White => {
+                self.zobrist ^= self.zobrist_array[ZobristPosition::WhitePawn as usize
+                    + (i32::min(mov.start_square, mov.end_square)) as usize]
+            }
+            Color::Black => {
+                self.zobrist ^= self.zobrist_array[ZobristPosition::BlackPawn as usize
+                    + (i32::max(mov.start_square, mov.end_square)) as usize]
+            }
             Color::Empty => unreachable!(),
         }
 
@@ -94,6 +100,20 @@ impl Board {
             Color::Black => 1 << i32::min(mov.start_square, mov.end_square),
             Color::Empty => unreachable!(),
         };
+
+        match self.turn {
+            Color::White => {
+                if mov.start_square > mov.end_square {
+                    self.zobrist_change_square(i32::max(mov.start_square, mov.end_square));
+                }
+            }
+            Color::Black => {
+                if mov.start_square < mov.end_square {
+                    self.zobrist_change_square(i32::min(mov.start_square, mov.end_square));
+                }
+            }
+            Color::Empty => unreachable!(),
+        }
 
         match mov.promotion {
             PieceType::Knight => self.knights ^= bitmap,
@@ -104,8 +124,16 @@ impl Board {
         }
 
         match self.turn {
-            Color::White => self.zobrist_change_square(i32::max(mov.start_square, mov.end_square)),
-            Color::Black => self.zobrist_change_square(i32::min(mov.start_square, mov.end_square)),
+            Color::White => {
+                if mov.start_square < mov.end_square {
+                    self.zobrist_change_square(i32::max(mov.start_square, mov.end_square));
+                }
+            }
+            Color::Black => {
+                if mov.start_square > mov.end_square {
+                    self.zobrist_change_square(i32::min(mov.start_square, mov.end_square));
+                }
+            }
             Color::Empty => unreachable!(),
         }
     }
@@ -149,11 +177,11 @@ impl Board {
         let mut piece = self.get_piece(mov.start_square);
         let bitmap = (1 << mov.start_square) | (1 << mov.end_square);
 
-        self.zobrist_change_square(mov.end_square);
-
         if mov.promotion != PieceType::Empty {
             piece.typ = PieceType::Pawn;
             self.promote_pawn(mov);
+        } else {
+            self.zobrist_change_square(mov.start_square);
         }
 
         match piece.color {
@@ -174,6 +202,8 @@ impl Board {
                 if mov.promotion == PieceType::Empty {
                     self.pawns ^= bitmap;
                     if i32::abs(mov.start_square - mov.end_square) == 16 {
+                        self.zobrist ^= self.zobrist_array
+                            [ZobristPosition::EnPassant as usize + mov.end_square.file() as usize];
                         self.en_passant_target = mov.end_square - self.turn as i32;
                     }
                 }
@@ -183,10 +213,34 @@ impl Board {
             PieceType::Rook => {
                 self.rooks ^= bitmap;
                 match mov.start_square {
-                    0 => self.castling_rights.white_queen = false,
-                    7 => self.castling_rights.white_king = false,
-                    56 => self.castling_rights.black_queen = false,
-                    63 => self.castling_rights.black_king = false,
+                    0 => {
+                        if self.castling_rights.white_queen {
+                            self.castling_rights.white_queen = false;
+                            self.zobrist ^=
+                                self.zobrist_array[ZobristPosition::WhiteQueenCastle as usize];
+                        }
+                    }
+                    7 => {
+                        if self.castling_rights.white_king {
+                            self.castling_rights.white_king = false;
+                            self.zobrist ^=
+                                self.zobrist_array[ZobristPosition::WhiteKingCastle as usize];
+                        }
+                    }
+                    56 => {
+                        if self.castling_rights.black_queen {
+                            self.castling_rights.black_queen = false;
+                            self.zobrist ^=
+                                self.zobrist_array[ZobristPosition::BlackQueenCastle as usize];
+                        }
+                    }
+                    63 => {
+                        if self.castling_rights.black_king {
+                            self.castling_rights.black_king = false;
+                            self.zobrist ^=
+                                self.zobrist_array[ZobristPosition::BlackKingCastle as usize];
+                        }
+                    }
                     _ => (),
                 }
             }
@@ -195,12 +249,28 @@ impl Board {
                 self.kings ^= bitmap;
                 match self.turn {
                     Color::White => {
-                        self.castling_rights.white_king = false;
-                        self.castling_rights.white_queen = false;
+                        if self.castling_rights.white_queen {
+                            self.castling_rights.white_queen = false;
+                            self.zobrist ^=
+                                self.zobrist_array[ZobristPosition::WhiteQueenCastle as usize];
+                        }
+                        if self.castling_rights.white_king {
+                            self.castling_rights.white_king = false;
+                            self.zobrist ^=
+                                self.zobrist_array[ZobristPosition::WhiteKingCastle as usize];
+                        }
                     }
                     Color::Black => {
-                        self.castling_rights.black_king = false;
-                        self.castling_rights.black_queen = false;
+                        if self.castling_rights.black_queen {
+                            self.castling_rights.black_queen = false;
+                            self.zobrist ^=
+                                self.zobrist_array[ZobristPosition::BlackQueenCastle as usize];
+                        }
+                        if self.castling_rights.black_king {
+                            self.castling_rights.black_king = false;
+                            self.zobrist ^=
+                                self.zobrist_array[ZobristPosition::BlackKingCastle as usize];
+                        }
                     }
                     Color::Empty => unreachable!(),
                 }
@@ -215,11 +285,35 @@ impl Board {
             }
         }
 
+        if mov.promotion != PieceType::Empty {
+            self.zobrist_change_square(mov.end_square);
+        }
+
         match mov.end_square {
-            0 => self.castling_rights.white_queen = false,
-            7 => self.castling_rights.white_king = false,
-            56 => self.castling_rights.black_queen = false,
-            63 => self.castling_rights.black_king = false,
+            0 => {
+                if self.castling_rights.white_queen {
+                    self.castling_rights.white_queen = false;
+                    self.zobrist ^= self.zobrist_array[ZobristPosition::WhiteQueenCastle as usize];
+                }
+            }
+            7 => {
+                if self.castling_rights.white_king {
+                    self.castling_rights.white_king = false;
+                    self.zobrist ^= self.zobrist_array[ZobristPosition::WhiteKingCastle as usize];
+                }
+            }
+            56 => {
+                if self.castling_rights.black_queen {
+                    self.castling_rights.black_queen = false;
+                    self.zobrist ^= self.zobrist_array[ZobristPosition::BlackQueenCastle as usize];
+                }
+            }
+            63 => {
+                if self.castling_rights.black_king {
+                    self.castling_rights.black_king = false;
+                    self.zobrist ^= self.zobrist_array[ZobristPosition::BlackKingCastle as usize];
+                }
+            }
             _ => (),
         }
     }
@@ -256,6 +350,7 @@ impl Board {
 
     pub fn remove_piece(&mut self, square: Square) {
         let piece = self.get_piece(square);
+        self.zobrist_change_square(square);
         self.toggle_piece(square, piece);
     }
 
@@ -321,7 +416,8 @@ impl Board {
             Color::White => self.turn = Color::Black,
             Color::Black => {
                 self.turn = Color::White;
-                self.full_move_clock = 1;
+                self.full_move_clock += 1;
+                self.zobrist ^= self.zobrist_array[ZobristPosition::SideToMove as usize];
             }
             Color::Empty => unreachable!(),
         }
@@ -355,7 +451,11 @@ impl Board {
 
         self.capture_en_passant(mov);
         self.castle(mov);
-        self.en_passant_target = -1;
+        if self.en_passant_target != -1 {
+            self.zobrist ^= self.zobrist_array
+                [ZobristPosition::EnPassant as usize + self.en_passant_target.file() as usize];
+            self.en_passant_target = -1;
+        }
         self.move_piece(mov);
 
         self.change_half_move_clock(&mov);

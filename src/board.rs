@@ -80,7 +80,7 @@ pub enum Color {
     Empty,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CastlingRights {
     pub white_king: bool,
     pub white_queen: bool,
@@ -99,7 +99,7 @@ impl CastlingRights {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Irreversible {
     pub en_passant_target: Square,
     pub castling_rights: CastlingRights,
@@ -129,14 +129,7 @@ pub enum ZobristPosition {
     BlackKingCastle = 708,
     BlackQueenCastle = 709,
 
-    EnPassant0 = 710,
-    EnPassant1 = 711,
-    EnPassant2 = 712,
-    EnPassant3 = 713,
-    EnPassant4 = 714,
-    EnPassant5 = 715,
-    EnPassant6 = 716,
-    EnPassant7 = 717,
+    EnPassant = 710,
 }
 
 const fn generate_rectangular() -> [[Bitmap; 64]; 64] {
@@ -166,7 +159,7 @@ const fn generate_rectangular() -> [[Bitmap; 64]; 64] {
 
 const RECTANGULAR: [[Bitmap; 64]; 64] = generate_rectangular();
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Board {
     pub white_pieces: Bitmap,
     pub black_pieces: Bitmap,
@@ -199,9 +192,17 @@ impl Hash for Board {
     }
 }
 
+impl Eq for Board {
+    fn assert_receiver_is_total_eq(&self) {}
+}
+
 impl Board {
     pub fn new() -> Self {
-        let zobrist_array = [rand::random(); 781];
+        let mut zobrist_array = [0; 781];
+        for i in 0..781 {
+            zobrist_array[i] = rand::random();
+        }
+
         let mut board = Board {
             white_pieces: 0xFFFF,
             black_pieces: 0xFFFF000000000000,
@@ -232,7 +233,13 @@ impl Board {
     }
 
     pub fn empty_board() -> Self {
-        Board {
+        let mut zobrist_array = [0; 781];
+
+        for i in 0..781 {
+            zobrist_array[i] = rand::random();
+        }
+
+        let mut board = Board {
             white_pieces: 0,
             black_pieces: 0,
 
@@ -252,9 +259,13 @@ impl Board {
             irreversible: Vec::new(),
             fen: String::new(),
 
-            zobrist_array: [rand::random(); 781],
+            zobrist_array,
             zobrist: 0,
-        }
+        };
+
+        board.zobrist_init();
+
+        board
     }
 
     pub fn get_piece(&self, square: Square) -> Piece {
@@ -299,17 +310,8 @@ impl Board {
         }
 
         if self.en_passant_target != -1 {
-            match self.en_passant_target.file() {
-                0 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant0 as usize],
-                1 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant1 as usize],
-                2 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant2 as usize],
-                3 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant3 as usize],
-                4 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant4 as usize],
-                5 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant5 as usize],
-                6 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant6 as usize],
-                7 => self.zobrist ^= self.zobrist_array[ZobristPosition::EnPassant7 as usize],
-                _ => unreachable!(),
-            }
+            self.zobrist ^= self.zobrist_array
+                [ZobristPosition::EnPassant as usize + self.en_passant_target.file() as usize];
         }
     }
 

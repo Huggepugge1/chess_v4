@@ -1,5 +1,4 @@
 use crate::board::{Board, Color};
-use crate::piece::PieceType;
 use crate::r#move::Move;
 
 use crate::eval::Eval;
@@ -31,7 +30,7 @@ struct TranspositionEntry {
     result: SearchMoves,
 }
 
-type TranspositionTable = HashMap<Board, TranspositionEntry>;
+pub type TranspositionTable = HashMap<Board, TranspositionEntry>;
 
 pub fn timer(time: u64, stopper: &Stopper) {
     thread::sleep(Duration::from_millis(time));
@@ -85,7 +84,7 @@ impl Board {
 
         let mut depth = 1;
 
-        let mut transposition_table = Arc::new(Mutex::new(HashMap::new()));
+        let trasposition_table = Arc::new(Mutex::new(HashMap::new()));
         let mut moves = self
             .generate_moves()
             .iter()
@@ -96,7 +95,6 @@ impl Board {
         let mut upper_window = self.turn as Eval * 3;
 
         while depth <= max_depth {
-            let transposition_clone = transposition_table.lock().unwrap().clone();
             if stopper.load(Ordering::SeqCst) {
                 return moves;
             }
@@ -105,7 +103,7 @@ impl Board {
                 alpha,
                 beta,
                 moves.clone(),
-                Arc::clone(&transposition_table),
+                Arc::clone(&trasposition_table),
                 stopper,
             );
             let best_move = result[0].0;
@@ -120,7 +118,7 @@ impl Board {
                 alpha = score - lower_window;
                 beta = score + upper_window;
 
-                transposition_table = Arc::new(Mutex::new(transposition_clone));
+                trasposition_table.lock().unwrap().clear();
                 continue;
             }
 
@@ -150,22 +148,15 @@ impl Board {
         }
 
         if depth == 0 {
-            return self.quiescence_search(alpha, beta, moves, stopper);
+            return vec![(Move::null(), self.eval())];
         }
 
-        match transposition_table.lock().unwrap().get(self) {
-            Some(entry) => {
-                if entry.depth >= depth + 1 {
-                    if entry.result[0].1 <= alpha {
-                        return vec![(Move::null(), alpha)];
-                    }
-                    if entry.result[0].1 >= beta {
-                        return vec![(Move::null(), beta)];
-                    }
-                    return entry.result.clone();
-                }
-            }
-            None => (),
+        if transposition_table.lock().unwrap().contains_key(self)
+            && transposition_table.lock().unwrap()[self].depth >= depth
+            && transposition_table.lock().unwrap()[self].result[0].1 <= beta
+            && transposition_table.lock().unwrap()[self].result[0].1 >= alpha
+        {
+            return transposition_table.lock().unwrap()[self].clone().result;
         }
 
         let result = Arc::new(SegQueue::new());
@@ -232,81 +223,6 @@ impl Board {
                 result: final_result.clone(),
             },
         );
-        final_result
-    }
-
-    fn quiescence_search(
-        &mut self,
-        mut alpha: Eval,
-        beta: Eval,
-        moves: SearchMoves,
-        stopper: &Stopper,
-    ) -> SearchMoves {
-        if stopper.load(Ordering::SeqCst) {
-            return vec![(Move::null(), alpha)];
-        }
-
-        let stand_pat = self.eval();
-
-        if stand_pat >= beta {
-            return vec![(Move::null(), beta)];
-        }
-
-        if alpha < stand_pat {
-            alpha = stand_pat;
-        }
-
-        let result = Arc::new(SegQueue::new());
-        let break_out = Arc::new(AtomicBool::new(false));
-        let alpha = Arc::new(AtomicEval::new(alpha));
-
-        moves.par_iter().for_each(|(mov, _)| {
-            if break_out.load(Ordering::SeqCst)
-                || self.get_piece(mov.end_square).typ == PieceType::Empty
-            {
-                return;
-            }
-            let mut board = self.clone();
-            board.make_move(&mov);
-            let alpha_clone = alpha.load(Ordering::SeqCst);
-            let moves = board
-                .generate_moves()
-                .iter()
-                .map(|mov| (mov.clone(), alpha_clone))
-                .collect::<Vec<_>>();
-
-            let score = -board.quiescence_search(-beta, -alpha_clone, moves, stopper)[0].1;
-
-            board.unmake_move(&mov);
-
-            if score >= beta {
-                break_out.store(true, Ordering::SeqCst);
-                return;
-            }
-
-            if score > alpha.load(Ordering::SeqCst) {
-                alpha.store(score, Ordering::SeqCst);
-            }
-
-            result.push((mov.clone(), score));
-        });
-
-        if break_out.load(Ordering::SeqCst) {
-            let result = vec![(Move::null(), beta)];
-            return result;
-        }
-
-        let mut final_result = Vec::new();
-        while let Some(res) = result.pop() {
-            final_result.push(res);
-        }
-
-        if final_result.len() == 0 {
-            let result = vec![(Move::null(), alpha.load(Ordering::SeqCst))];
-            return result;
-        }
-
-        final_result.sort_by(|(_, eval1), (_, eval2)| eval2.cmp(eval1));
         final_result
     }
 }
