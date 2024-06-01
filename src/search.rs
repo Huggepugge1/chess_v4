@@ -162,7 +162,7 @@ impl Board {
         stopper: &Stopper,
     ) -> SearchMoves {
         if moves.len() == 0 {
-            return vec![(Move::null(), -Eval::MAX + 1000)];
+            return vec![(Move::null(), alpha)];
         }
 
         if stopper.load(Ordering::SeqCst) {
@@ -170,7 +170,7 @@ impl Board {
         }
 
         if depth == 0 {
-            return vec![(Move::null(), self.eval())];
+            return self.quiescence_search(alpha, beta, moves, stopper);
         }
 
         match transposition_table.lock().unwrap().get(self) {
