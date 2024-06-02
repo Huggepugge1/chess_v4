@@ -76,6 +76,23 @@ impl Move {
 }
 
 impl Board {
+    pub fn is_quiet(&mut self, mov: &Move) -> bool {
+        let end_piece = self.get_piece(mov.end_square);
+
+        if end_piece.typ != PieceType::Empty {
+            return false;
+        }
+
+        if mov.promotion != PieceType::Empty {
+            return false;
+        }
+
+        if self.is_checking_move(mov) {
+            return false;
+        }
+
+        true
+    }
     pub fn promote_pawn(&mut self, mov: &Move) {
         self.pawns ^= match self.turn {
             Color::White => 1 << i32::min(mov.start_square, mov.end_square),

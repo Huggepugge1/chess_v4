@@ -73,7 +73,7 @@ impl ToSquare for String {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, PartialOrd, Eq)]
 pub enum Color {
     White = 8,
     Black = -8,

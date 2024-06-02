@@ -199,7 +199,7 @@ pub fn handle_input(input: String, mut board: Board, stopper: &Stopper) -> Board
                     movetime,
                     &stopper,
                 )[0]
-                .0
+                .mov
                 .as_string();
                 match result.as_str() {
                     "`1`1" => println!("Did not find any legal moves!"),
