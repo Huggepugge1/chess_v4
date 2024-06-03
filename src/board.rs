@@ -80,7 +80,7 @@ pub enum Color {
     Empty,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CastlingRights {
     pub white_king: bool,
     pub white_queen: bool,
@@ -99,11 +99,12 @@ impl CastlingRights {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Irreversible {
     pub en_passant_target: Square,
     pub castling_rights: CastlingRights,
     pub half_move_clock: u8,
+    pub full_move_clock: u8,
     pub captured_piece: Piece,
     pub mov: Move,
 }
@@ -159,7 +160,7 @@ const fn generate_rectangular() -> [[Bitmap; 64]; 64] {
 
 const RECTANGULAR: [[Bitmap; 64]; 64] = generate_rectangular();
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Board {
     pub white_pieces: Bitmap,
     pub black_pieces: Bitmap,
@@ -190,10 +191,6 @@ impl Hash for Board {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.zobrist.hash(state);
     }
-}
-
-impl Eq for Board {
-    fn assert_receiver_is_total_eq(&self) {}
 }
 
 impl Board {

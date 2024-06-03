@@ -28,7 +28,7 @@ fn main() {
     let stopper = Arc::new(AtomicBool::new(true));
     let mut board = board::Board::new();
 
-    if true {
+    if false {
         ThreadPoolBuilder::new()
             .num_threads(1)
             .build_global()

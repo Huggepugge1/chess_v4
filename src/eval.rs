@@ -1,6 +1,5 @@
 use crate::board::{Board, Color};
 use crate::piece::PieceType;
-use crate::search::SearchMove;
 
 use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Neg, Sub};
@@ -155,7 +154,7 @@ impl Ord for Eval {
 }
 
 impl Board {
-    pub fn eval(&mut self, self_moves: Vec<SearchMove>) -> Eval {
+    pub fn eval(&mut self, self_moves: usize) -> Eval {
         let white_pawns = self.white_pieces & self.pawns;
         let white_knights = self.white_pieces & self.knights;
         let white_bishops = self.white_pieces & self.bishops;
@@ -168,9 +167,7 @@ impl Board {
         let black_rooks = self.black_pieces & self.rooks;
         let black_queens = self.black_pieces & self.queens;
 
-        let en_passant_target = self.en_passant_target;
-
-        if self_moves.len() == 0 {
+        if self_moves == 0 {
             if self.is_check() {
                 return Eval {
                     score: 0,
@@ -181,6 +178,7 @@ impl Board {
             }
         }
 
+        let en_passant_target = self.en_passant_target;
         self.en_passant_target = -1;
 
         self.change_turn();
@@ -198,9 +196,9 @@ impl Board {
             + Eval::from(PieceType::Knight)
                 * (Eval::from(white_knights.count_ones()) - Eval::from(black_knights.count_ones()))
             + Eval::from(PieceType::Pawn)
-                * (Eval::from(white_pawns.count_ones()) - Eval::from(black_pawns.count_ones()))
-            + Eval::from(10i64) * (Eval::from(self_moves.len()) - Eval::from(other_moves)))
+                * (Eval::from(white_pawns.count_ones()) - Eval::from(black_pawns.count_ones())))
             * Eval::from(self.turn)
             / Eval::from(8i64)
+            + Eval::from(10i64) * (Eval::from(self_moves) - Eval::from(other_moves))
     }
 }

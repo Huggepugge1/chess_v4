@@ -199,9 +199,15 @@ pub fn handle_input(input: String, mut board: Board, stopper: &Stopper) -> Board
                     movetime,
                     &stopper,
                 )[0]
-                .mov
-                .as_string();
-                match result.as_str() {
+                .clone();
+
+                if result.eval.mate.is_some() {
+                    println!("info score mate {}", result.eval.mate.unwrap());
+                } else {
+                    println!("info score cp {}", result.eval.score);
+                }
+
+                match result.mov.as_string().as_str() {
                     "`1`1" => println!("Did not find any legal moves!"),
                     mov => println!("bestmove {mov}"),
                 }

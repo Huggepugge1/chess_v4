@@ -100,37 +100,11 @@ impl Board {
             Color::Empty => unreachable!(),
         };
 
-        match self.turn {
-            Color::White => {
-                self.zobrist ^= self.zobrist_array[ZobristPosition::WhitePawn as usize
-                    + (i32::min(mov.start_square, mov.end_square)) as usize]
-            }
-            Color::Black => {
-                self.zobrist ^= self.zobrist_array[ZobristPosition::BlackPawn as usize
-                    + (i32::max(mov.start_square, mov.end_square)) as usize]
-            }
-            Color::Empty => unreachable!(),
-        }
-
         let bitmap = match self.turn {
             Color::White => 1 << i32::max(mov.start_square, mov.end_square),
             Color::Black => 1 << i32::min(mov.start_square, mov.end_square),
             Color::Empty => unreachable!(),
         };
-
-        match self.turn {
-            Color::White => {
-                if mov.start_square > mov.end_square {
-                    self.zobrist_change_square(i32::max(mov.start_square, mov.end_square));
-                }
-            }
-            Color::Black => {
-                if mov.start_square < mov.end_square {
-                    self.zobrist_change_square(i32::min(mov.start_square, mov.end_square));
-                }
-            }
-            Color::Empty => unreachable!(),
-        }
 
         match mov.promotion {
             PieceType::Knight => self.knights ^= bitmap,
@@ -138,20 +112,6 @@ impl Board {
             PieceType::Rook => self.rooks ^= bitmap,
             PieceType::Queen => self.queens ^= bitmap,
             _ => panic!("Tried to promote to a {:?}!", mov.promotion),
-        }
-
-        match self.turn {
-            Color::White => {
-                if mov.start_square < mov.end_square {
-                    self.zobrist_change_square(i32::max(mov.start_square, mov.end_square));
-                }
-            }
-            Color::Black => {
-                if mov.start_square > mov.end_square {
-                    self.zobrist_change_square(i32::min(mov.start_square, mov.end_square));
-                }
-            }
-            Color::Empty => unreachable!(),
         }
     }
 
@@ -194,11 +154,11 @@ impl Board {
         let mut piece = self.get_piece(mov.start_square);
         let bitmap = (1 << mov.start_square) | (1 << mov.end_square);
 
+        self.zobrist_change_square(mov.start_square);
+
         if mov.promotion != PieceType::Empty {
             piece.typ = PieceType::Pawn;
             self.promote_pawn(mov);
-        } else {
-            self.zobrist_change_square(mov.start_square);
         }
 
         match piece.color {
@@ -302,9 +262,7 @@ impl Board {
             }
         }
 
-        if mov.promotion != PieceType::Empty {
-            self.zobrist_change_square(mov.end_square);
-        }
+        self.zobrist_change_square(mov.end_square);
 
         match mov.end_square {
             0 => {
@@ -429,12 +387,12 @@ impl Board {
     }
 
     pub fn change_turn(&mut self) {
+        self.zobrist ^= self.zobrist_array[ZobristPosition::SideToMove as usize];
         match self.turn {
             Color::White => self.turn = Color::Black,
             Color::Black => {
                 self.turn = Color::White;
                 self.full_move_clock += 1;
-                self.zobrist ^= self.zobrist_array[ZobristPosition::SideToMove as usize];
             }
             Color::Empty => unreachable!(),
         }
@@ -458,6 +416,7 @@ impl Board {
             en_passant_target: self.en_passant_target,
             castling_rights: self.castling_rights,
             half_move_clock: self.half_move_clock,
+            full_move_clock: self.full_move_clock,
             captured_piece,
             mov: mov.clone(),
         });
@@ -486,18 +445,32 @@ impl Board {
         self.move_piece(&reverse_mov);
         self.un_castle(mov);
 
+        if self.en_passant_target != -1 {
+            self.zobrist ^= self.zobrist_array
+                [ZobristPosition::EnPassant as usize + self.en_passant_target.file() as usize];
+            self.en_passant_target = -1;
+        }
+
         let captured_piece;
         Irreversible {
             en_passant_target: self.en_passant_target,
             castling_rights: self.castling_rights,
             half_move_clock: self.half_move_clock,
+            full_move_clock: self.full_move_clock,
             captured_piece,
             mov: _,
         } = self.irreversible.pop().unwrap();
 
+        if self.en_passant_target != -1 {
+            self.zobrist ^= self.zobrist_array
+                [ZobristPosition::EnPassant as usize + self.en_passant_target.file() as usize];
+            self.en_passant_target = -1;
+        }
+
         self.restore_en_passant(mov);
         if captured_piece.color != Color::Empty {
             self.toggle_piece(mov.end_square, captured_piece);
+            self.zobrist_change_square(mov.end_square);
         }
     }
 }

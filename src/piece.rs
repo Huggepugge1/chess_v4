@@ -11,7 +11,7 @@ pub enum PieceType {
     Empty,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Piece {
     pub typ: PieceType,
     pub color: Color,

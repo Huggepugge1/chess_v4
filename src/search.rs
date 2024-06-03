@@ -3,17 +3,13 @@ use crate::r#move::Move;
 
 use crate::eval::Eval;
 
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use std::collections::HashMap;
 
 use std::thread;
 use std::time::Duration;
-
-use rayon::prelude::*;
-
-use crossbeam::queue::SegQueue;
 
 #[derive(Debug, Clone)]
 pub struct SearchMove {
@@ -26,7 +22,6 @@ pub type Depth = Option<u16>;
 pub type MoveCount = Option<u8>;
 pub type Nodes = Option<usize>;
 pub type Stopper = Arc<AtomicBool>;
-pub type AtomicEval = AtomicI64;
 
 #[derive(Debug, Clone)]
 struct TranspositionEntry {
@@ -100,16 +95,16 @@ impl Board {
             Color::Empty => unreachable!(),
         }
 
-        let mut alpha = Eval::MIN.score;
-        let mut beta = Eval::MAX.score;
+        let mut alpha = Eval::MIN;
+        let mut beta = Eval::MAX;
 
         let mut depth = 1;
 
-        let mut transposition_table = Arc::new(Mutex::new(HashMap::new()));
+        let mut transposition_table = HashMap::new();
         let mut moves = self.generate_search_moves();
 
-        let mut lower_window = 25;
-        let mut upper_window = 25;
+        let mut lower_window = Eval::from(25i64);
+        let mut upper_window = Eval::from(25i64);
 
         let mut previous_score = alpha;
 
@@ -118,40 +113,40 @@ impl Board {
                 return moves;
             }
 
-            let transposition_clone = transposition_table.lock().unwrap().clone();
+            let transposition_clone = transposition_table.clone();
 
             let result = self.negamax(
                 depth,
                 alpha,
                 beta,
                 moves.clone(),
-                Arc::clone(&transposition_table),
+                &mut transposition_table,
                 stopper,
             );
             let best_move = result[0].mov;
             let score = result[0].eval;
 
-            if best_move == Move::null() || score.score == alpha {
-                if score.score == beta {
-                    upper_window *= 4;
-                } else if score.score == alpha {
-                    lower_window *= 4;
+            if best_move == Move::null() || score == alpha {
+                if score == beta {
+                    upper_window = upper_window * Eval::from(4i64);
+                } else if score == alpha {
+                    lower_window = lower_window * Eval::from(4i64);
                 }
 
                 alpha = previous_score - lower_window;
                 beta = previous_score + upper_window;
 
-                transposition_table = Arc::new(Mutex::new(transposition_clone));
+                transposition_table = transposition_clone;
                 continue;
             }
 
-            lower_window = 25;
-            upper_window = 25;
+            lower_window = Eval::from(25i64);
+            upper_window = Eval::from(25i64);
 
-            alpha = score.score - lower_window;
-            beta = score.score + upper_window;
+            alpha = score - lower_window;
+            beta = score + upper_window;
 
-            previous_score = score.score;
+            previous_score = score;
 
             moves = result;
             depth += 1;
@@ -163,16 +158,16 @@ impl Board {
     fn negamax(
         &mut self,
         depth: u16,
-        alpha: i64,
-        beta: i64,
+        mut alpha: Eval,
+        beta: Eval,
         moves: Vec<SearchMove>,
-        transposition_table: Arc<Mutex<TranspositionTable>>,
+        transposition_table: &mut TranspositionTable,
         stopper: &Stopper,
     ) -> Vec<SearchMove> {
         if moves.len() == 0 {
             return vec![SearchMove {
                 mov: Move::null(),
-                eval: self.eval(moves),
+                eval: self.eval(moves.len()),
             }];
         }
 
@@ -187,16 +182,19 @@ impl Board {
             return self.quiescence_search(alpha, beta, moves, stopper);
         }
 
-        match transposition_table.lock().unwrap().get(self) {
+        match transposition_table.get(self) {
             Some(entry) => {
                 if entry.depth >= depth + 1 {
-                    if entry.result[0].eval.score <= alpha {
+                    if entry.result[0].eval.mate != None {
+                        return entry.result.clone();
+                    }
+                    if entry.result[0].eval <= alpha {
                         return vec![SearchMove {
                             mov: Move::null(),
                             eval: alpha.into(),
                         }];
                     }
-                    if entry.result[0].eval.score >= beta {
+                    if entry.result[0].eval >= beta {
                         return vec![SearchMove {
                             mov: Move::null(),
                             eval: beta.into(),
@@ -208,77 +206,53 @@ impl Board {
             None => (),
         }
 
-        let result = Arc::new(SegQueue::new());
-        let break_out = Arc::new(AtomicBool::new(false));
-        let alpha = Arc::new(AtomicEval::new(alpha));
+        let mut result = Vec::new();
 
-        moves.par_iter().for_each(|SearchMove { mov, eval: _ }| {
-            if break_out.load(Ordering::SeqCst) {
-                return;
-            }
+        for SearchMove { mov, eval: _ } in moves {
             let mut board = self.clone();
+
             board.make_move(&mov);
-            let alpha_clone = alpha.load(Ordering::SeqCst);
             let moves = board.generate_search_moves();
 
-            let mut score = -board.negamax(
+            let score = -board.negamax(
                 depth - 1,
                 -beta,
-                -alpha_clone,
+                -alpha,
                 moves,
-                Arc::clone(&transposition_table),
+                transposition_table,
                 stopper,
             )[0]
             .eval;
 
             board.unmake_move(&mov);
 
-            let mut mate = false;
-            match score.mate {
-                Some(mate_ply) => {
-                    mate = true;
-                    score.mate = Some(mate_ply + 1);
-                }
-                None => (),
+            if score >= beta {
+                let result = vec![SearchMove {
+                    mov: Move::null(),
+                    eval: beta.into(),
+                }];
+                return result;
             }
 
-            if score.score >= beta && !mate {
-                break_out.store(true, Ordering::SeqCst);
-                return;
-            }
-
-            if score.score > alpha.load(Ordering::SeqCst) && !mate {
-                alpha.store(score.score, Ordering::SeqCst);
+            if score > alpha {
+                alpha = score;
             }
 
             result.push(SearchMove {
                 mov: mov.clone(),
                 eval: score,
             });
-        });
+        }
 
-        if break_out.load(Ordering::SeqCst) {
+        if result.len() == 0 {
             let result = vec![SearchMove {
                 mov: Move::null(),
-                eval: beta.into(),
+                eval: alpha,
             }];
             return result;
         }
 
-        let mut final_result = Vec::new();
-        while let Some(res) = result.pop() {
-            final_result.push(res);
-        }
-
-        if final_result.len() == 0 {
-            let result = vec![SearchMove {
-                mov: Move::null(),
-                eval: alpha.load(Ordering::SeqCst).into(),
-            }];
-            return result;
-        }
-
-        final_result.sort_by(
+        result.sort_by(
             |SearchMove {
                  mov: _,
                  eval: eval1,
@@ -289,21 +263,21 @@ impl Board {
              }| { eval2.cmp(eval1) },
         );
 
-        transposition_table.lock().unwrap().insert(
+        transposition_table.insert(
             self.clone(),
             TranspositionEntry {
                 depth,
-                result: final_result.clone(),
+                result: result.clone(),
             },
         );
 
-        final_result
+        result
     }
 
     fn quiescence_search(
         &mut self,
-        mut alpha: i64,
-        beta: i64,
+        mut alpha: Eval,
+        beta: Eval,
         moves: Vec<SearchMove>,
         stopper: &Stopper,
     ) -> Vec<SearchMove> {
@@ -314,7 +288,7 @@ impl Board {
             }];
         }
 
-        let stand_pat = self.eval(moves.clone());
+        let stand_pat = self.eval(moves.len());
 
         if stand_pat.mate != None {
             return vec![SearchMove {
@@ -325,8 +299,6 @@ impl Board {
                 },
             }];
         }
-
-        let stand_pat = stand_pat.score;
 
         if stand_pat >= beta {
             return vec![SearchMove {
@@ -339,93 +311,47 @@ impl Board {
             alpha = stand_pat;
         }
 
-        let result = Arc::new(SegQueue::new());
-        let break_out = Arc::new(AtomicBool::new(false));
-        let alpha = Arc::new(AtomicEval::new(alpha));
+        let mut result = Vec::new();
 
-        moves.par_iter().for_each(|SearchMove { mov, eval: _ }| {
-            let mut board = self.clone();
-            if break_out.load(Ordering::SeqCst) || board.is_quiet(mov) {
-                return;
+        for SearchMove { mov, eval: _ } in moves {
+            if self.is_quiet(&mov) {
+                continue;
             }
 
-<<<<<<< Updated upstream
-            let zobrist = board.zobrist;
-            board.make_move(&mov);
-            board.unmake_move(&mov);
-            if zobrist != board.zobrist {
-                println!("zobrist mismatch");
-                for (index, zobrist_hash) in self.zobrist_array.iter().enumerate() {
-                    if zobrist ^ zobrist_hash == board.zobrist {
-                        println!("index: {}", index);
-=======
-            let zobrist = self.zobrist;
-            board.make_move(&mov);
-            board.unmake_move(&mov);
-            if board.zobrist != zobrist {
-                println!("Zobrist mismatch!");
-                for (index, zobrist_key) in board.zobrist_array.iter().enumerate() {
-                    if zobrist ^ zobrist_key == self.zobrist {
-                        println!("Zobrist key: {}", index);
->>>>>>> Stashed changes
-                    }
-                }
+            self.make_move(&mov);
+            let moves = self.generate_search_moves();
+
+            let score = -self.quiescence_search(-beta, -alpha, moves, stopper)[0].eval;
+
+            self.unmake_move(&mov);
+
+            if score >= beta {
+                let result = vec![SearchMove {
+                    mov: Move::null(),
+                    eval: beta,
+                }];
+                return result;
             }
 
-            board.make_move(&mov);
-            let alpha_clone = alpha.load(Ordering::SeqCst);
-            let moves = board.generate_search_moves();
-
-            let mut score = -board.quiescence_search(-beta, -alpha_clone, moves, stopper)[0].eval;
-
-            board.unmake_move(&mov);
-
-            let mut mate = false;
-            match score.mate {
-                Some(mate_ply) => {
-                    mate = true;
-                    score.mate = Some(mate_ply + 1);
-                }
-                None => (),
-            }
-
-            if score.score >= beta && !mate {
-                break_out.store(true, Ordering::SeqCst);
-                return;
-            }
-
-            if score.score > alpha.load(Ordering::SeqCst) && !mate {
-                alpha.store(score.score, Ordering::SeqCst);
+            if score > alpha {
+                alpha = score;
             }
 
             result.push(SearchMove {
                 mov: mov.clone(),
                 eval: score,
             });
-        });
+        }
 
-        if break_out.load(Ordering::SeqCst) {
+        if result.len() == 0 {
             let result = vec![SearchMove {
                 mov: Move::null(),
-                eval: beta.into(),
+                eval: alpha,
             }];
             return result;
         }
 
-        let mut final_result = Vec::new();
-        while let Some(res) = result.pop() {
-            final_result.push(res);
-        }
-
-        if final_result.len() == 0 {
-            let result = vec![SearchMove {
-                mov: Move::null(),
-                eval: alpha.load(Ordering::SeqCst).into(),
-            }];
-            return result;
-        }
-
-        final_result.sort_by(
+        result.sort_by(
             |SearchMove {
                  mov: _,
                  eval: eval1,
@@ -436,6 +362,6 @@ impl Board {
              }| { eval2.cmp(eval1) },
         );
 
-        final_result
+        result
     }
 }
