@@ -349,6 +349,18 @@ impl Board {
                 return;
             }
 
+            let zobrist = board.zobrist;
+            board.make_move(&mov);
+            board.unmake_move(&mov);
+            if zobrist != board.zobrist {
+                println!("zobrist mismatch");
+                for (index, zobrist_hash) in self.zobrist_array.iter().enumerate() {
+                    if zobrist ^ zobrist_hash == board.zobrist {
+                        println!("index: {}", index);
+                    }
+                }
+            }
+
             board.make_move(&mov);
             let alpha_clone = alpha.load(Ordering::SeqCst);
             let moves = board.generate_search_moves();
