@@ -172,7 +172,7 @@ impl Board {
         if moves.len() == 0 {
             return vec![SearchMove {
                 mov: Move::null(),
-                eval: self.eval(),
+                eval: self.eval(moves),
             }];
         }
 
@@ -314,7 +314,7 @@ impl Board {
             }];
         }
 
-        let stand_pat = self.eval();
+        let stand_pat = self.eval(moves.clone());
 
         if stand_pat.mate != None {
             return vec![SearchMove {
@@ -349,6 +349,7 @@ impl Board {
                 return;
             }
 
+<<<<<<< Updated upstream
             let zobrist = board.zobrist;
             board.make_move(&mov);
             board.unmake_move(&mov);
@@ -357,6 +358,16 @@ impl Board {
                 for (index, zobrist_hash) in self.zobrist_array.iter().enumerate() {
                     if zobrist ^ zobrist_hash == board.zobrist {
                         println!("index: {}", index);
+=======
+            let zobrist = self.zobrist;
+            board.make_move(&mov);
+            board.unmake_move(&mov);
+            if board.zobrist != zobrist {
+                println!("Zobrist mismatch!");
+                for (index, zobrist_key) in board.zobrist_array.iter().enumerate() {
+                    if zobrist ^ zobrist_key == self.zobrist {
+                        println!("Zobrist key: {}", index);
+>>>>>>> Stashed changes
                     }
                 }
             }
